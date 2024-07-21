@@ -1,0 +1,60 @@
+# jemdoc: nofooter
+# jemdoc: addcss{css/jemdoc.css}
+# jemdoc: addcss{css/myMiddle.css}
+# jemdoc: title{Yuhao Ji - The Chinese University of Hong Kong}
+
+~~~
+{}{img_left}{img/photo.jpg}{}{126}{}{}
+= Yuhao Ji
+
+*Ph.D. student* \n
+[http://www.cse.cuhk.edu.hk Department of Computer Science and Engineering] \n
+[http://www.cuhk.edu.hk/english/index.html The Chinese University of Hong Kong] \n
+*Supervisor*: [http://www.cse.cuhk.edu.hk/~byu/ Prof. Bei Yu] \n
+# *Office*:Rm 904, Ho Sin Hang Engineering Building \n
+*Email*:arthurxxzh@gmail.com \n
+~~~
+
+#{{<a href="https://www.linkedin.com/in/yuzhe-ma-275a7bb5" target="<u>blank"><img src="img/linkedin-logo.png" height=30></a>
+#<a href="https://scholar.google.com/citations?user=iANUv3MAAAAJ&hl=en&oi=sra" target="<u>blank"><img src="img/scholar.png" height=30></a>  }}
+
+
+== Biography
+
+I am currently a first-year Ph.D. student at the Department of Computer Science and Engineering, The Chinese University of Hong Kong, supervised by [http://www.cse.cuhk.edu.hk/~byu/ Prof. Bei Yu] since Fall 2024. 
+Prior to that, I obtained my B.S. degree in the [https://ese.nju.edu.cn/main.htm School of Electronic Science and Engineering] from [https://www.nju.edu.cn/ Nanjing University (NJU)] in 2024.
+
+# My research interests include machine learning and deep learning with applications in VLSI CAD and image processing.
+
+# [http://yuzhe630.github.io/cv/cv_Yuzhe.pdf *My Resume/CV*]
+
+== Research Interests
+- Electronic Design Automation
+- Computer Architecture
+- VLSI Design
+
+== Publications
+
+=== Conference Papers
+# - \[J1\] Lizhe Wang, *Hao Geng*, Peng Liu, Ke Lu, Joanna Kolodziej, Rajiv Ranjan, Albert Zomaya,
+#   "[http://www.sciencedirect.com/science/article/pii/S0950705114003712 Particle Swarm Optimization based Dictionary Learning for Remote Sensing Big Data]",
+#   Knowledge-Based System, vol. 79, pages 43-50, Elsevier, May, 2015.
+
+# - \[C1\] *Hao Geng*, Lizhe Wang, Peng Liu, Lajiao Chen,
+#   "[http://ieeexplore.ieee.org/abstract/document/6946980/ Compressed Sensing Based Remote Sensing Image Reconstruction Using an Auxiliary Image as Priors]",
+#   in IEEE Geoscience and Remote Sensing Symposium (IGARSS), pages 2499-2502, IEEE, Quebec, Canada, 2014.
+
+- \[C2\] *Yuhao Ji*\*, Chao Fang\*, Shaobo Ma, Haikuo Shao, Zhongfeng Wang, "Co-Designing Binarized Transformer and Hardware Accelerator for Efficient End-to-End Edge Deployment", IEEE/ACM International Conference on Computer-Aided Design (*ICCAD*), New Jersey, Oct. 27–31, 2024. ([https://arxiv.org/pdf/2407.12070 arxiv])
+- \[C1\] *Yuhao Ji*, Chao Fang, Zhongfeng Wang, "BETA: Binarized Energy-Efficient Transformer Accelerator at the Edge", IEEE International Symposium on Circuits and Systems (*ISCAS*), Singapore, May. 19-22, 2024. ([https://arxiv.org/pdf/2401.11851 arxiv])
+
+== Selected Awards
+~~~
+{}{table}{noborder}
+Postgraduate Studentship | CUHK | 2024-2028 ||
+National Scholarship | NJU | 2022 
+~~~
+
+# == Teaching
+
+# 2017 Fall: [http://www.cse.cuhk.edu.hk/~byu/CENG4480/index.html CENG4480 -- Embedded System Development and Applications]
+
