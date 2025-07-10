@@ -45,6 +45,7 @@ Prior to that, I obtained my B.S. degree in the [https://ese.nju.edu.cn/main.htm
 #   "[http://ieeexplore.ieee.org/abstract/document/6946980/ Compressed Sensing Based Remote Sensing Image Reconstruction Using an Auxiliary Image as Priors]",
 #   in IEEE Geoscience and Remote Sensing Symposium (IGARSS), pages 2499-2502, IEEE, Quebec, Canada, 2014.
 
+- \[C5\] Yuntao Lu, Dehua Liang, Siting Liu, *Yuhao Ji*, Yu Zhang, Xuanqi Chen, Xia Lin, Jinlei Lu, Weihua Sheng, Bei Yu, "A Hybrid Optimization Framework for Power-Efficient Pulsed Latch Utilization in Clock Networks", ACM/IEEE International Symposium on Machine Learning for CAD (*MLCAD*), Santa Cruz, Sep. 8-10, 2025.
 - \[C4\] *Yuhao Ji*, Yuntao Lu, Zuodong Zhang, Zizheng Guo, Yibo Lin, Bei Yu, "DiffCCD: Differentiable Concurrent Clock and Data Optimization", IEEE/ACM International Conference on Computer-Aided Design (*ICCAD*), Munich, Oct. 26–30, 2025.
 - \[C3\] Yuan Pu\*, *Yuhao Ji*\*, Siying Yu, Zuodong Zhang, Zizheng Guo, Zhuolun He, Yibo Lin, David Z. Pan, Bei Yu, "GPU Acceleration for Versatile Buffer Insertion", IEEE/ACM International Conference on Computer-Aided Design (*ICCAD*), Munich, Oct. 26–30, 2025.
 - \[C2\] *Yuhao Ji*\*, Chao Fang\*, Shaobo Ma, Haikuo Shao, Zhongfeng Wang, "Co-Designing Binarized Transformer and Hardware Accelerator for Efficient End-to-End Edge Deployment", IEEE/ACM International Conference on Computer-Aided Design (*ICCAD*), New Jersey, Oct. 27–31, 2024. ([https://arxiv.org/pdf/2407.12070 arxiv])
