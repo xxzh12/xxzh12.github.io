@@ -38,7 +38,7 @@ Prior to that, I obtained my B.S. degree in the [https://ese.nju.edu.cn/main.htm
 == Publications
 
 === Journal Papers
-
+- \[J2\] Yang Bai, Mingjun Li, *Yuhao Ji*, Bei Yu, “Co-exploration of Hardware Acceleration and Tensor Programs via Unified Compilation Interface”, ACM Transactions on Design Automation of Electronic Systems (*TODAES*).
 - \[J1\] Wendong Xu, *Yuhao Ji*, Yang Bai, Yueting Li, Yuxuan Zhao, Zhengwu Liu, Bei Yu, Ngai Wong, "PPD: A Portable and Highly Parallel Dispatching System for Deep Learning", ACM Transactions on Design Automation of Electronic Systems (*TODAES*).
 
 === Conference Papers
@@ -50,6 +50,8 @@ Prior to that, I obtained my B.S. degree in the [https://ese.nju.edu.cn/main.htm
 #   "[http://ieeexplore.ieee.org/abstract/document/6946980/ Compressed Sensing Based Remote Sensing Image Reconstruction Using an Auxiliary Image as Priors]",
 #   in IEEE Geoscience and Remote Sensing Symposium (IGARSS), pages 2499-2502, IEEE, Quebec, Canada, 2014.
 
+- \[C8\] *Yuhao Ji*, Yunqi Shi, Tianshu Hou, Yuxuan Zhao, Chunyuan Zhao, Peiyu Liao, Zizheng Guo, Chao Qian, Yibo Lin, Bei Yu, "Integrated Timing-driven Placement for Hybrid-Bonding-based Face-to-Face 3D ICs", ACM/IEEE The Chips to Systems Conference (DAC), 2026
+- \[C7\] *Yuhao Ji*, Zizheng Guo, Yibo Lin, Bei Yu, “HeteroSTA3D: A CPU-GPU Heterogeneous Static Timing Analysis Engine for 3D ICs”, Conference of Science & Technology for Integrated Circuits (CSTIC), Shanghai, Mar. 22–24, 2026.  ([https://www.cse.cuhk.edu.hk/~byu/papers/C336-CSTIC2026-HeteroSTA3D.pdf paper]) (*Invited Paper*)
 - \[C6\] Mengjia Dai, Hongduo Liu, *Yuhao Ji*, Xiaojing Su, Yibo Lin, Bei Yu, “Soft-Constrained Triple Patterning Layout Decomposition”, IEEE/ACM Proceedings Design, Automation and Test in Europe (*DATE*), Verona, Italy, Apr. 20–22, 2026.
 - \[C5\] Yuntao Lu, Dehua Liang, Siting Liu, *Yuhao Ji*, Yu Zhang, Xuanqi Chen, Xia Lin, Jinlei Lu, Weihua Sheng, Bei Yu, "A Hybrid Optimization Framework for Power-Efficient Pulsed Latch Utilization in Clock Networks", ACM/IEEE International Symposium on Machine Learning for CAD (*MLCAD*), Santa Cruz, Sep. 8-10, 2025.
 - \[C4\] *Yuhao Ji*, Yuntao Lu, Zuodong Zhang, Zizheng Guo, Yibo Lin, Bei Yu, "DiffCCD: Differentiable Concurrent Clock and Data Optimization", IEEE/ACM International Conference on Computer-Aided Design (*ICCAD*), Munich, Oct. 26–30, 2025.
