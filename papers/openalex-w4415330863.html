@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Large Language Models for 3D IC Space Planning · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>Large Language Models for 3D IC Space Planning</h1><p class="paper-note">Hung-Ying Chu, Guan-Wei Chen, Shao-Yu Wei, Yu-Cheng Lin · Proceedings of the 2025 8th Artificial Intelligence and Cloud Computing Conference · 2025 · <a href="https://doi.org/10.1145/3789982.3790035">原文</a> · <a href="https://arxiv.org/pdf/2509.22716">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>这是一份详细的、按逻辑顺序串联的文献解读。为了帮助您更好地理解全文，我将在正文开始前先为您建立阅读本文所需的最小系统全貌和核心概念背景。</p>
+<h3>背景补充与系统全貌</h3>
+<p>这篇文章探讨的是**电子设计自动化（EDA, Electronic Design Automation）<strong>领域中的</strong>物理设计（Physical Design）**环节。当工程师设计出一款芯片后，需要将其逻辑转化为物理形态。在这个过程中，<strong>空间规划（Space Planning，通常也称为布图规划 Floorplanning）<strong>是至关重要的一步。您可以将其想象成在有限的地皮上规划建筑：有一堆大小各异的功能模块（如计算核心、缓存、内存接口等，本文统一称其为</strong>模块 Module</strong>，并将其抽象为不可形变的三维长方体），目标是在满足特定约束的前提下，将它们塞进一个给定的空间内。</p>
+<p>传统的芯片是二维（2D）平铺的，但随着摩尔定律逼近物理极限，行业引入了<strong>三维集成电路（3D IC）</strong>。3D IC 通过在垂直方向上堆叠芯片模块，能够缩短互连线长度并降低功耗。但这使得原本就是 **NP-hard（多项式复杂程度的非确定性问题，意味着随着模块数量增加，寻找最优解的时间呈爆炸式增长）**的二维布图问题，升级成了更加复杂的三维空间规划问题。</p>
+<p>在算法层面，要在三维空间中表示各个模块的位置，最直观的方法是记录每个模块的绝对坐标（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>x</mi><mo>,</mo><mi>y</mi><mo>,</mo><mi>z</mi></mrow></math></span>）和长宽高。但这种表示方法会导致解空间极其庞大，算法很难高效搜索。因此，EDA 领域常用**切片树（Slicing Tree）**这种数据结构来降维表示空间布局。本文讨论的正是：<strong>如何不依赖传统缓慢的搜索算法，而是利用大语言模型（LLM）去“生成”这种切片树，从而快速、高质量地完成 3D IC 的空间规划，消除模块间的无效空隙（死区，Dead Space）。</strong></p>
+<hr />
+<h3>1. 绪论 (Introduction)</h3>
+<p>本节主要交代了问题的背景、现有技术瓶颈以及本文的创新动机。</p>
+<p>由于二维集成电路在面积、延迟和功耗上受到限制，3D IC 成为“超越摩尔定律”的关键技术。但 3D IC 的空间规划非常复杂，设计者不仅要最小化死区（未被利用的废弃空间）和线长，还要考虑散热、供电等约束。过去几十年，工业界主要依赖**模拟退火算法（Simulated Annealing, SA）**等启发式方法来解决这个问题。模拟退火是一种基于概率的全局优化算法，它通过随机变异来寻找最优解，虽然能跳出局部最优，但其计算时间长，且结果质量存在随机波动。</p>
+<p>近年来，人工智能为 EDA 带来了新思路。深度强化学习（DRL）已被证明在二维布图上有效，而大语言模型（LLM）则展现出了强大的序列建模能力。既然 LLM 擅长输出有逻辑的文本序列，作者假设：如果把芯片的布局表示为一种特定的文本序列（树结构编码），LLM 是否能像写代码一样直接“写”出高质量的 3D 布局？</p>
+<p>因此，本文提出了一个定制化的微调框架，专门针对 3D IC 空间规划。作者在大量合成的 3D 布局数据集上微调了开源 LLM，并在 EDA 领域标准的 MCNC 衍生测试集上进行了验证，证明了这种数据驱动的方法能在与传统算法相同的预算时间内，实现极低的死区率，甚至达成“零死区”的完美布局。</p>
+<h3>2. 问题描述 (Problem Description)</h3>
+<p>本节详细定义了 3D IC 空间规划的数学模型，并解释了“切片树”和“死区”的具体概念。这也是理解全文算法机制的核心基础。</p>
+<p>文章将问题形式化为：给定一组模块集合 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>P</mi><mo>=</mo><mo stretchy="false">{</mo><msub><mi>p</mi><mn>0</mn></msub><mo>,</mo><msub><mi>p</mi><mn>1</mn></msub><mo>,</mo><msub><mi>p</mi><mn>2</mn></msub><mo>,</mo><mo>.</mo><mo>.</mo><mo>.</mo><mo>,</mo><msub><mi>p</mi><mi>n</mi></msub><mo stretchy="false">}</mo></mrow></math></span>，每个模块 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mi>i</mi></msub></mrow></math></span> 是一个尺寸固定（宽度 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>w</mi><mi>i</mi></msub></mrow></math></span>、高度 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>h</mi><mi>i</mi></msub></mrow></math></span>、深度 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>d</mi><mi>i</mi></msub></mrow></math></span>）的长方体。目标是将它们放置在三维空间中，使总死区（Total Dead Space）最小。如背景中所述，为了避免直接处理绝对坐标带来的维度灾难，作者采用了**三维切片树（3D Slicing Tree）**来表示布局。</p>
+<p><strong>切片树的设计逻辑（作者沿用的领域标准）：</strong>
+切片树是一种二叉树结构。它通过递归地将整个芯片空间切分来安置模块。切割操作分为三种：沿 X 轴的水平切（Horizontal, H）、沿 Y 轴的垂直切（Vertical, V）和沿 Z 轴的深度切（Depth, D）。在切片树中，叶子节点代表具体的模块（如 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mn>0</mn></msub></mrow></math></span>），内部节点代表切割方向（H、V、D）。只要拥有这样一棵树及其切割序列，就能唯一且合法地还原出所有模块在三维空间中的相对位置。</p>
+<p><strong>死区（Dead Space）的数学定义：</strong>
+死区是指在构建切片树时，将两个模块（或子区域）合并成一个更大的父区域时产生的未使用体积。因为被合并的两个模块尺寸通常不一致，合并后必须用一个能包围它们的最小外接长方体（Bounding Box）作为新的父区域，这就不可避免地会产生空隙。对于任意两个模块 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mi>i</mi></msub></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mi>j</mi></msub></mrow></math></span>，它们合并产生的死区体积计算公式为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>d</mi><mi>s</mi><mo stretchy="false">(</mo><msub><mi>p</mi><mi>i</mi></msub><mo>,</mo><msub><mi>p</mi><mi>j</mi></msub><mo stretchy="false">)</mo><mo>=</mo><msub><mi>V</mi><mrow><mi>p</mi><mi>a</mi><mi>r</mi><mi>e</mi><mi>n</mi><mi>t</mi></mrow></msub><mo>−</mo><msub><mi>V</mi><mi>i</mi></msub><mo>−</mo><msub><mi>V</mi><mi>j</mi></msub></mrow></math></span>（公式1）。</p>
+<p>其中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>V</mi><mi>i</mi></msub></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>V</mi><mi>j</mi></msub></mrow></math></span> 是子模块的体积，而父区域的体积 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>V</mi><mrow><mi>p</mi><mi>a</mi><mi>r</mi><mi>e</mi><mi>n</mi><mi>t</mi></mrow></msub></mrow></math></span> 取决于切割方向：
+如果是水平切（H），意味着两个模块在 X 轴拼接，所以父宽度是两者宽度之和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">(</mo><msub><mi>w</mi><mi>i</mi></msub><mo>+</mo><msub><mi>w</mi><mi>j</mi></msub><mo stretchy="false">)</mo></mrow></math></span>，而父高度和深度则必须取两者的最大值 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>max</mo><mo stretchy="false">(</mo><msub><mi>h</mi><mi>i</mi></msub><mo>,</mo><msub><mi>h</mi><mi>j</mi></msub><mo stretchy="false">)</mo></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>max</mo><mo stretchy="false">(</mo><msub><mi>d</mi><mi>i</mi></msub><mo>,</mo><msub><mi>d</mi><mi>j</mi></msub><mo stretchy="false">)</mo></mrow></math></span>（公式2）。同理，垂直切（V）是在 Y 轴拼接，父高度相加，宽高取最大值（公式3）；深度切（D）是在 Z 轴拼接，父深度相加，宽高取最大值（公式4）。整个布局的总死区就是所有这些合并操作产生的局部死区之和（公式5）。优化的目标就是寻找一棵切片树，使得这个总和最小。</p>
+<h3>3. 方法论 (Methodology)</h3>
+<p>本节详细介绍了作者如何将上述 3D 布图问题转化为 LLM 可以理解和生成的自然语言处理任务。整个工作流分为三个阶段：数据集生成、模型微调、推理与死区评估。</p>
+<h4>3.1 数据集生成阶段 (Dataset Generation Stage)</h4>
+<p>因为现实中缺乏大规模的 3D IC 布局文本数据集，作者必须自己合成。生成过程是自顶向下的：首先随机生成一个代表整个芯片的大长方体，然后随机选择切割方向（H、V、D）将其一分为二，为了统一规范，<strong>作者设定了一个设计选择</strong>：始终将靠近坐标原点的子块指定为左子节点。这个过程递归进行，直到切分出指定数量的模块。</p>
+<p><strong>树编码的设计选择：后序遍历（Post-Order Traversal）</strong>
+为了将生成的切片树变成 LLM 认识的线性文本，作者采用了后序遍历来编码树结构。后序遍历的规则是“左子树-右子树-根节点”。这就意味着在生成的文本序列中，模块标签（如 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mn>0</mn></msub><mo>,</mo><msub><mi>p</mi><mn>1</mn></msub></mrow></math></span>）会先出现，随后才是切割操作符（H, V, D）。例如，序列 <code>p0; p1; V</code> 意味着“拿出 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mn>0</mn></msub></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mn>1</mn></msub></mrow></math></span>，用垂直方式将它们切分开（或合并）”。作者选择后序遍历是因为它的结构更简单，且能利用基于栈（Stack）的算法进行唯一、无歧义的重建，避免了语法解析的混乱。</p>
+<p><strong>MCNC 衍生实例的构建：</strong>
+为了证明模型不是只能在纯随机数据上跑，作者引入了 MCNC 这一 EDA 领域广泛使用的真实基准测试集（包含 ami33, ami49 等经典用例）。因为 MCNC 本来是二维的，作者通过为每个模块随机采样一个“深度”值，将其扩展为三维。
+这里遇到了一个<strong>系统约束（硬件/软件约束）</strong>：当前的 LLM 存在上下文窗口长度的限制，难以一次性处理 ami33（33个模块）或 ami49（49个模块）产生的极长序列。为了解决这个问题，作者<strong>主动做出了一个工程妥协（设计选择）</strong>：采用了分组策略（Grouping）。他们将 ami33 在体积上均衡地合并为 11 个大复合模块，将 ami49 分成 5 组（每组约 10 个模块）。这样就把问题的规模强行降到了 LLM 能够处理的 8-16 个模块的区间内。</p>
+<h4>3.2 模型微调阶段与 3.3 推理评估阶段</h4>
+<p>在微调阶段，作者将模块的尺寸信息作为输入，正确的后序切片树表达式作为目标输出交由 LLM 学习。为了在有限的显存下训练，采用了 LoRA/QLoRA（一种参数高效微调技术）来降低内存需求。在推理时，LLM 输出预测的文本序列。</p>
+<p>得到文本序列后，作者使用栈算法将其重建为 3D 布局，并额外加入了一个轻量级的一维压缩（Compaction）后处理步骤，依次在 X、Y、Z 轴上挤压布局，以消除合法的残余空隙（这也是一种常见的软件层面的设计选择）。</p>
+<p>为了量化评估，作者定义了四个严谨的评估指标：</p>
+<ol>
+<li><strong>合法率 (Legality, <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>L</mi></mrow></math></span>)</strong>：生成的序列能够成功还原为有效切片树的比例（公式6）。</li>
+<li><strong>最佳死区率 (Best Dead-Space Ratio, <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>B</mi></mrow></math></span>)</strong>：在某一个问题生成的所有候选解中，死区最小的那个解的死区体积与根节点总包围盒体积的比值（公式7）。</li>
+<li><strong>全局死区率 (Global Dead-Space Ratio, <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>G</mi></mrow></math></span>)</strong>：所有测试用例的死区率平均值。<em>（原文在此处存在明显拼写错误，公式 8 中的变量被错写成了 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>∑</mo><mi>d</mi><mi>a</mi><mi>e</mi><mi>d</mi><mi>_</mi><mi>r</mi><mi>a</mi><mi>t</mi><mi>i</mi><mi>o</mi></mrow></math></span>，正确的应为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>d</mi><mi>e</mi><mi>a</mi><mi>d</mi><mi>_</mi><mi>r</mi><mi>a</mi><mi>t</mi><mi>i</mi><mi>o</mi></mrow></math></span>）</em>。</li>
+<li><strong>跨用例最佳平均 (Across-Case Best Average, <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>A</mi></mrow></math></span>)</strong>：每个问题的最佳死区率的平均值（公式9）。</li>
+</ol>
+<p>为了对比，作者设置了两个模拟退火（SA）基准：一个是强调计算效率的 SA-Fast，另一个是运行时间长达 15 分钟、追求质量的 SA-Quality。</p>
+<h3>4. 实验结果 (Experimental Result)</h3>
+<p>实验使用了 Unsloth 框架加速训练。合成数据集包含 12 万个 8-16 模块的实例和 20 万个针对 MCNC 尺度放大的实例。作者测试了不同参数量级的四个模型：LLaMA3.1 (8B)、LLaMA3.2 (3B)、GPT-2 和 Phi-4 (13B)。结果表明，80 亿参数的 LLaMA3.1 (8B) 达到了最佳的训练效率和布局质量平衡，因此被选为主力模型与 SA 进行对比。</p>
+<p><strong>合成数据集表现：</strong>
+图 7 展示了核心结果。在跨用例最佳平均死区率上，LLaMA3.1（约 2.74%–8.04%）远胜于同等耗时的 SA-Fast（9.95%–23.44%），并且其质量逼近了耗时极长的 SA-Quality。在时间上，LLaMA3.1 生成只需 70–140 秒，而 SA-Quality 需要 800–1500 秒。在合法率上，启发式算法 SA 天然是 100% 合法的，而 LLaMA3.1 维持在 96% 到 100% 之间，偶尔会生成无效序列，但无伤大雅。最令人瞩目的是，在生成“零死区（0% dead space）”完美解决方案的能力上，LLaMA3.1 在 8 个模块时成功率高达 87%，远超 SA 基准。</p>
+<p><strong>MCNC 基准测试表现：</strong>
+表 1 揭示了模型在真实世界数据上的泛化能力。在 apte、xerox 和 hp 等中等规模的基准上，模型保持了 90% 以上的合法率，死区率在 31% 到 57% 之间。然而，当面对经过分组预处理的 ami33 和 ami49 时，合法率下降至 88% 和 76%，且死区率急剧飙升至 75% 和 82% 左右。这说明当面临大量具有不规则长宽比的模块时，当前框架存在明显的扩展性瓶颈。</p>
+<h3>5. 结论与 6. 局限性及未来工作 (Conclusion, Limitations and Future Work)</h3>
+<p>总体而言，这篇文章是首次尝试将 LLM 引入 3D IC 空间规划领域的验证性工作。它证明了将 3D 布局编码为后序切片树序列并交由 LLM 学习是可行的。LLaMA3.1 (8B) 能够作为一种数据驱动的替代方案，在极短的时间内提供极高质量（甚至零死区）的小规模布局方案，为传统的 EDA 启发式算法提供了一种强有力的补充。</p>
+<p><strong>原文逻辑错误与排版勘误：</strong>
+在此必须指出，原文在第 6 节的排版出现了明显失误。<strong>6.5 节和 6.6 节使用了完全相同的标题“Resource and deployment constraints:”（资源与部署约束）</strong>。实际上，6.5 节讲述的是由于计算资源有限，未来需要将模型部署到云端或数字孪生平台；而 6.6 节讨论的内容完全是“跨领域应用”，指出该框架可以延伸到物流装载、3D 物体放置等其他空间规划领域。这是文章在此处的一个低级编辑错误。</p>
+<p><strong>贯穿全文的主线与核心局限：</strong>
+这篇文章的<strong>主线</strong>是：面对 3D 芯片布局这一维度爆炸的难题，传统搜索算法太慢且随机；因此作者引入 LLM，通过将其转换为“写后序切片树文本”的任务，实现了又快又好的三维空间压缩。</p>
+<p>但这套机制能够成立，存在几个<strong>关键假设与局限</strong>，其结论不能被过度推广：</p>
+<ol>
+<li><strong>单一维度的优化假象</strong>：本工作（正如作者在 6.4 节承认的）仅仅将“最小化死区（物理空间不浪费）”作为唯一优化目标。在真实的 3D IC 物理设计中，供电网络、热量耗散、TSV（硅通孔）布局、互连线长度的考量往往比单纯的体积压缩更重要。目前的方法完全忽略了这些真实约束。</li>
+<li><strong>拓展性灾难</strong>：为了应对 LLM 词元上下文长度的<strong>硬件约束</strong>，作者在测试大模块时被迫采用了“强制分组”的<strong>软件妥协</strong>。实验结果（表1）无情地证明，这种妥协导致复杂场景下死区率飙升至 80% 以上。面对工业界动辄数十万个模块的真实芯片，单纯依靠 LLM 直接吐出切片树是不切实际的。未来必然需要大模型与传统启发式算法（如作为初始解生成器）相结合的混合架构才能真正落地。</li>
+</ol>
+</div></td></tr></table></body></html>

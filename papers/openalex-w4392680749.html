@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Routing-aware Legal Hybrid Bonding Terminal Assignment for 3D Face-to-Face Stacked ICs · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>Routing-aware Legal Hybrid Bonding Terminal Assignment for 3D Face-to-Face Stacked ICs</h1><p class="paper-note">Siting Liu, Jiaxi Jiang, Zhuolun He, Ziyi Wang, Yibo Lin, Bei Yu, Martin D. F. Wong · Proceedings of the 2024 International Symposium on Physical Design · 2024 · <a href="https://doi.org/10.1145/3626184.3633322">原文</a> · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>这是一篇针对 2024 年国际物理设计研讨会（ISPD '24）论文《Routing-aware Legal Hybrid Bonding Terminal Assignment for 3D Face-to-Face Stacked ICs》的详细解析。本文按论文结构逐节展开，在介绍具体技术前会先构建必要的背景知识，并阐明作者的设计动机、方法和结论。</p>
+<hr />
+<h3>背景补充与系统全貌</h3>
+<p>在正式进入论文内容前，我们需要建立关于 3D 芯片集成（3D ICs）和物理设计的最小背景。</p>
+<p>现代集成电路（IC）由于摩尔定律的放缓，越来越难在单层二维（2D）硅片上无限制地缩小晶体管。为此，业界引入了 <strong>3D 封装与集成技术</strong>，将原来在一个平面上的芯片拆分成多块较小的芯片（Die），然后将它们像盖楼一样垂直堆叠起来。本文研究的具体对象是 <strong>Face-to-Face (F2F) 3D 堆叠集成电路</strong>。在 F2F 结构中，两块预先制造好的芯片（分别称为顶层 Die 和底层 Die）面对面贴合，它们各自最顶层的金属布线层直接相连。</p>
+<p>在这个系统中，两层芯片之间需要通过物理触点来进行数据和电信号的流动，这些触点在本文中被称为 <strong>Hybrid Bonding Terminals（混合键合终端，简称键合终端）</strong>。这构成了本文的核心硬件约束：</p>
+<ol>
+<li><strong>尺寸与间距（Pitch）错位</strong>：随着制造工艺（如 15nm、45nm 技术节点）的进步，芯片内部的逻辑门和金属连线变得极度细小（例如线间距缩小到 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.064</mn><mi>μ</mi><mi>m</mi></mrow></math></span>）。然而，用于连接两层芯片的“键合终端”受限于晶圆对准和机械键合工艺，其尺寸和间距（Pitch，通常在 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mi>μ</mi><mi>m</mi></mrow></math></span> 左右）远远大于内部金属线。</li>
+<li><strong>合法性（Legality）约束</strong>：因为键合终端很大，如果我们在设计软件中像摆放普通微小通孔（Via）一样随意摆放这些终端，它们在物理上就会相互重叠，导致短路或制造失败。所谓“合法（Legal）”，就是指所有键合终端都必须放置在无重叠的物理网格上。</li>
+<li><strong>布线（Routing）</strong>：在确定了逻辑门和键合终端的位置后，电子设计自动化（EDA）工具需要进行“布线”，即用金属线把所有应该连在一起的引脚连通。如果键合终端的位置分配得不好，金属线就需要绕远路，导致总线长（Wirelength）增加，进而增加芯片功耗和信号延迟。</li>
+</ol>
+<p><strong>本文探讨的正是芯片物理设计流程中的“终端分配（Terminal Assignment）”层级。</strong> 过去的方法要么依赖普通的 2D 布线工具瞎蒙，要么在布线完成后再去强行挪动重叠的终端（即后处理合法化）。本文作者认为，后处理会破坏已经优化好的布线路径。因此，本文提出了一种名为 <strong>BTAssign</strong> 的框架，在<strong>布线操作开始之前</strong>，就结合对布线长度的预测，把键合终端合法、最优地分配给跨层互连的网络。</p>
+<hr />
+<h3>一、 Introduction (引言)</h3>
+<p>引言部分主要介绍了问题的硬件背景和现有技术的局限性。</p>
+<p>作者首先对比了三种主流的 3D 芯片互连技术（对应论文图 1）：</p><figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=1"><img src="figures/openalex-w4392680749/figure-1.png" alt="Figure 1: 3D stacking techniques for the inter-die connection." loading="lazy"></a><figcaption>Figure 1 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=1">原文 PDF 第 1 页</a></figcaption></figure>
+<ul>
+<li><strong>TSV（硅通孔）</strong>：穿透整个硅基底，体积巨大，会严重挤占放置逻辑门的硅片面积，导致局部极度拥挤。</li>
+<li><strong>MIV（单片极小通孔）</strong>：尺寸与普通金属通孔差不多，但它属于 Face-to-Back (F2B) 结构，必须在同一条生产线上按顺序制造堆叠，因此强制要求两层芯片使用完全相同的制造工艺（即同质堆叠）。</li>
+<li><strong>混合 F2F 键合（Hybrid F2F bondings）</strong>：不占用底层硅面积，且允许两层芯片采用不同的制造工艺（例如下层用便宜的 45nm 放缓存，上层用昂贵的 15nm 放计算核心，即异质堆叠）。</li>
+</ul>
+<p>基于上述硬件优势，F2F 混合键合成为目前最有希望的扩展方案（已被应用于 AMD 的 3D V-Cache 和 Intel 的 Foveros 等商业产品中，原文此处引用了相关实例作为背景依据）。</p>
+<p><strong>核心问题引出</strong>：随着技术节点演进，逻辑门越来越小，但键合终端的缩小速度跟不上（参考论文图 2 中紫色巨大的键合终端与极小的 15nm/45nm 逻辑门对比）。传统的 EDA 工具通常先进行 3D 划分（决定哪个逻辑门在哪一层），然后直接布线。现有的伪 3D 流程（如 Shrunk2D、Compact2D 等，作者软件层面的设计选择回顾）通常忽略了键合终端的物理间距规则，导致严重重叠。近期的一项工作（Pentapati 等人提出的 <code>viaLegal</code>）尝试在布线引擎插入终端后，使用二分图匹配算法进行后处理合法化（最小化终端的总位移）。但作者指出，这种<strong>后处理合法化</strong>会使得原本优化好的布线发生绕道（Detour），导致性能下降。</p><figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=2"><img src="figures/openalex-w4392680749/figure-2.png" alt="Figure 2: Illustration for the scale among gates in different              Though the above pseudo-3D methods have achieved favorable" loading="lazy"></a><figcaption>Figure 2 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=2">原文 PDF 第 2 页</a></figcaption></figure>
+<p>为此，作者提出了 <strong>BTAssign</strong> 框架（见图 3），将合法化和终端分配从“布线后”前置到“布线前”，并首次将其建模为带有布线感知（Routing-aware）的广义分配问题，以求同时兼顾物理合法性和布线线长性能。</p><figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=2"><img src="figures/openalex-w4392680749/figure-3.png" alt="Figure 3: With the partitioned netlist, we stacked the separate" loading="lazy"></a><figcaption>Figure 3 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=2">原文 PDF 第 2 页</a></figcaption></figure>
+<hr />
+<h3>二、 Preliminaries (预备知识与问题定义)</h3>
+<p>本节进一步明确了硬件约束，并给出了严格的数学定义。</p>
+<p><strong>2.1 3D Face-to-Face Stacking (3D 面对面堆叠约束)</strong>
+作者解释了一个关键的制造工艺约束（硬件强制）：为了保证两片晶圆键合时的机械对称性和连接可靠性，键合终端的分布最好是整齐均匀的。因此，区别于以往文献中可以随意放置终端的做法，本文的算法强制要求键合终端只能从一个预先定义好的、均匀分布的合法网格（Mesh grids）候选集中选取。</p>
+<p><strong>2.2 Problem Formulation (问题定义)</strong>
+作者在此给出了贯穿全文的关键定义：</p>
+<ul>
+<li><strong>3D Net（3D 网络）</strong>：如果一个信号网络 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>e</mi></mrow></math></span> 包含一组引脚（Pins），且其中至少有一对引脚分别位于不同的 Die（芯片层）上，这个网络就被称为 3D net。这意味着该信号必须穿过两层芯片交界处，因此<strong>必须</strong>被分配至少一个键合终端。本文不处理完全在单层内部的 2D net。</li>
+<li><strong>问题模型（Problem 1）</strong>：给定一组 3D nets 集合 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>E</mi><mo>=</mo><mo stretchy="false">{</mo><msub><mi>e</mi><mn>1</mn></msub><mo>,</mo><msub><mi>e</mi><mn>2</mn></msub><mo>,</mo><mo>⋯</mo><mo>,</mo><msub><mi>e</mi><mi>n</mi></msub><mo stretchy="false">}</mo></mrow></math></span> 和一组预设的均匀合法的键合终端候选集合 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi><mo>=</mo><mo stretchy="false">{</mo><msub><mi>t</mi><mn>1</mn></msub><mo>,</mo><msub><mi>t</mi><mn>2</mn></msub><mo>,</mo><mo>⋯</mo><mo>,</mo><msub><mi>t</mi><mi>m</mi></msub><mo stretchy="false">}</mo></mrow></math></span>，目标是找到一个满射（Surjection）函数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi><mi>:</mi><mi>T</mi><mo>→</mo><mi>E</mi></mrow></math></span>，使得总布线性能最好。
+<ul>
+<li>这里使用“满射”是因为：一个终端只能属于一个网络（避免短路），但一个网络可以分配多个终端（后文图 6 会解释为什么多个终端可能有助于缩短总线长）。</li>
+</ul>
+</li>
+</ul>
+<hr />
+<h3>三、 Algorithm (算法设计)</h3>
+<p>本节是论文的核心，详细推导了如何将上述定义转化为可计算的数学模型，以及如何解决计算复杂度过高的问题。</p>
+<p><strong>3.1 Overall Flow (整体流程)</strong>
+参考论文图 5，BTAssign 框架包含三步：1. 初始化合法的键合终端网格候选集；2. 使用四叉树（Quadtree）对空间进行递归划分；3. 执行广义分配算法。</p><figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=3"><img src="figures/openalex-w4392680749/figure-5.png" alt="Figure 5: The overall flow of our proposed BTAssign frame-" loading="lazy"></a><figcaption>Figure 5 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=3">原文 PDF 第 3 页</a></figcaption></figure>
+<p><strong>3.2 Explored Generalized Assignment (广义分配问题建模)</strong>
+作者将问题建模为 <strong>广义分配问题（Generalized Assignment Problem, GAP）</strong>。在这个模型中，终端相当于“资源/代理”，网络相当于“任务”。</p>
+<p>作者定义了布线成本预测函数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>c</mi><mo stretchy="false">(</mo><msub><mi>T</mi><mi>i</mi></msub><mo stretchy="false">)</mo></mrow></math></span>：表示将一组终端 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mi>i</mi></msub></mrow></math></span> 分配给网络 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>e</mi><mi>i</mi></msub></mrow></math></span> 后所产生的布线成本。为了在布线前快速评估，作者采用<strong>最小生成树（Minimum Spanning Tree, MST）</strong> 的长度来近似代替实际的布线线长（这是算法设计上的经典权衡：用计算便宜的 MST 代替耗时昂贵的实际布线器）。</p>
+<p>随后，作者给出了理想状态下的整数规划公式（Formula 1）：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mo>min</mo><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>n</mi></mrow></munderover><mi>c</mi><mo stretchy="false">(</mo><msub><mi>T</mi><mi>i</mi></msub><mo stretchy="false">)</mo></mrow></math>
+</div>
+<p>约束条件为：</p>
+<ol>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msubsup><mi>C</mi><mi>i</mi><mi>l</mi></msubsup><mo>≤</mo><msubsup><mo>∑</mo><mrow><mi>j</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>m</mi></mrow></msubsup><msub><mi>x</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>≤</mo><msubsup><mi>C</mi><mi>i</mi><mi>u</mi></msubsup></mrow></math></span> （每个网络分配到的终端数量必须在下限和上限之间，至少要分配 1 个以保证连通性）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msubsup><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>n</mi></mrow></msubsup><msub><mi>x</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>≤</mo><mn>1</mn><mo>,</mo><msub><mi>x</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>∈</mo><mo stretchy="false">{</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo stretchy="false">}</mo></mrow></math></span> （布尔变量 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>x</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub></mrow></math></span> 表示终端 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>j</mi></mrow></math></span> 分配给网络 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span>。该约束确保每个终端最多属于 1 个网络）。</li>
+</ol>
+<p><strong>为什么这个问题极其困难（动机引出）？</strong>
+作者指出了一个关键的非线性难题（Formula 2）：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>c</mi><mo stretchy="false">(</mo><msub><mi>T</mi><mi>i</mi></msub><mo stretchy="false">)</mo><mo>≠</mo><munder><mo>∑</mo><mrow><msub><mi>t</mi><mi>j</mi></msub><mi>~</mi><msub><mi>e</mi><mi>i</mi></msub></mrow></munder><mi>c</mi><mo stretchy="false">(</mo><mo stretchy="false">{</mo><msub><mi>t</mi><mi>j</mi></msub><mo stretchy="false">}</mo><mo stretchy="false">)</mo></mrow></math>
+</div>
+<p>即，为一个网络分配多个终端时的总线长收益，<strong>并不等于</strong>每个终端单独收益的线性累加（因为多引脚网络的金属线可以复用/合并）。（结合图 6 解释：在某些拓扑下，分配两个终端作为“桥梁”连接不同区域的引脚，比只用一个终端再长距离拉线的总线长更短）。这意味着，要想求得绝对最优解，必须把所有终端组合的成本都提前计算一遍，这在芯片动辄几十万个节点的规模下是引发内存爆炸和计算崩溃的 NP-hard 问题。</p><figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=4"><img src="figures/openalex-w4392680749/figure-6.png" alt="Figure 6: Single vs. Multiple bonding terminal assignment.                                                           Í𝑛 Í𝐶𝑖𝑢 𝑚 " loading="lazy"></a><figcaption>Figure 6 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=4">原文 PDF 第 4 页</a></figcaption></figure>
+<p><strong>为了解决计算不可行的问题，作者做出了算法降级与迭代选择（Equation 3 &amp; Algorithm 1）</strong>：
+作者放弃了一次性求解多对一的整数规划，转而将其拆解为<strong>多轮迭代的二分图匹配（Bipartite Matching）</strong>。
+在每一轮（第 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math></span> 轮）中，强制每个网络最多只能获取<strong>一个</strong>新的终端（变量由 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>x</mi></mrow></math></span> 变为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msubsup><mi>y</mi><mrow><mi>i</mi><mi>j</mi></mrow><mrow><mo stretchy="false">(</mo><mi>k</mi><mo stretchy="false">)</mo></mrow></msubsup></mrow></math></span>）。这样，成本评估就变成了线性的单对单计算（只需要计算 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>m</mi><mo>×</mo><mi>n</mi></mrow></math></span> 次）。如果在前一轮中某个网络 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>e</mi><mi>i</mi></msub></mrow></math></span> 已经分配了终端（记录在 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msubsup><mi>x</mi><mrow><mi>i</mi><mi>j</mi></mrow><mrow><mo stretchy="false">(</mo><mi>k</mi><mo>−</mo><mn>1</mn><mo stretchy="false">)</mo></mrow></msubsup></mrow></math></span> 中），那么本轮评估新终端 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>t</mi><mi>j</mi></msub></mrow></math></span> 时，会把旧终端和新终端放在一起重新计算 MST 成本。通过限制总迭代轮数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span>，控制了最大终端分配数量。</p>
+<p><strong>3.3 Hierarchical Bipartite Matching (分层二分匹配)</strong>
+即使改为单终端迭代，全局 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>m</mi><mo>×</mo><mi>n</mi></mrow></math></span> 的规模依然太大。因此作者引入了空间数据结构中经典的 <strong>四叉树（Quad-tree）进行分治（Divide and Conquer）</strong>。</p>
+<ol>
+<li><strong>递归划分（Recursive partition）</strong>：将整个芯片版图不断切分为 2x2 的子区域，直到子区域小于设定的阈值 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>p</mi><mo>×</mo><mi>p</mi></mrow></math></span>（实验中设为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>50</mn><mi>μ</mi><mi>m</mi></mrow></math></span>）。作者制定了一条规则：每个跨区域的网络被分配到能<strong>完全包围它所有引脚</strong>的最小四叉树节点上。</li>
+<li><strong>叶子节点分配（Leaf terminal assignment）</strong>：在最底层的极小区域内，调用前文的迭代二分匹配（Algorithm 1），只考虑该区域内的终端和网络。此时问题规模极小，可以快速求解。</li>
+<li><strong>回溯与微调（Backtrack and refine / Algorithm 2）</strong>：有些很大的网络（引脚分布很广）不属于任何叶子节点，而是被挂在四叉树的较高层节点上。算法从底层叶子向上回溯，处理这些大网络。在这个阶段，底层已经被征用的终端会被“掩码（Masked）”屏蔽掉，大网络只能使用剩余合法的空闲终端进行匹配。这保证了全局绝对不会出现重叠冲突。</li>
+</ol>
+<hr />
+<h3>四、 Experiment Results (实验结果)</h3>
+<p>本节验证了 BTAssign 相比于基线方案在布线线长和通孔数量上的优势。</p>
+<p><strong>4.1 &amp; 4.2 实验设置与采样机制</strong></p>
+<ul>
+<li><strong>设计生成</strong>：作者采用了 6 个开源芯片设计（表 1 所示如 ethmac, jpegencode 等），并将底层设为 Nangate45，顶层设为 Nangate15（模拟异质堆叠）。使用了公开工具 OpenROAD 和 FastRoute 进行最终布线验证。<figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=6"><img src="figures/openalex-w4392680749/table-1.png" alt="Table 1: Statistics for six open-source real-world designs." loading="lazy"></a><figcaption>Table 1 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=6">原文 PDF 第 6 页</a></figcaption></figure></li>
+<li><strong>硬件约束的具体化（表 2）</strong>：表 2 清晰展示了导致问题的根源——顶层最细金属线间距是 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.064</mn><mi>μ</mi><mi>m</mi></mrow></math></span>，而用于连接两层的 BT（Bonding Terminal）层由于被阻挡，其间距强制设为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mi>μ</mi><mi>m</mi></mrow></math></span>。<figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=6"><img src="figures/openalex-w4392680749/table-2.png" alt="Table 2: Track pitch information of our F2F stacked ICs." loading="lazy"></a><figcaption>Table 2 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=6">原文 PDF 第 6 页</a></figcaption></figure></li>
+<li><strong>软件约束（采样）</strong>：为了防止内存溢出，作者在算法中引入了采样因子 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi></mrow></math></span>。如果一个区域有 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math></span> 个网络，算法只生成 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mo>×</mo><mi>s</mi></mrow></math></span> 个均匀分布的终端候选点供选择，而不是生成无穷无尽的网格，以此平衡内存消耗和解的质量。</li>
+</ul>
+<p><strong>4.3 &amp; 4.4 性能评估（核心结论所在）</strong>
+表 4 是全文最重要的实验数据表，对比了三种流程的布线结果（wl = wirelength线长，# vias = 通孔数量，rt = runtime运行时间）：</p><figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=7"><img src="figures/openalex-w4392680749/table-4.png" alt="Table 4: Experimental results on real-world open-source designs with different placement solutions from three placers." loading="lazy"></a><figcaption>Table 4 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=7">原文 PDF 第 7 页</a></figcaption></figure>
+<ol>
+<li><strong>FastRoute</strong>：使用大赛原始放置的终端直接布线（包含非法重叠，作为理论下界）。</li>
+<li><strong>viaLegal + FastRoute</strong>：前沿的后处理合法化方法。</li>
+<li><strong>BTAssign + FastRoute</strong>：本文提出的布线感知预分配方法。</li>
+</ol>
+<p><strong>结论解读</strong>：</p>
+<ul>
+<li>在同样的初始排布下（采用了三种不同的开源 Placer：cadb1024, cadb1021, cadb1051 产生的数据表 3 初始解），<strong>BTAssign 在所有测试用例中都比 <code>viaLegal</code> 获得了更短的总线长和更少的通孔数</strong>（平均线长优化达 2.8%，最高达 5.0%）。<figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=6"><img src="figures/openalex-w4392680749/table-3.png" alt="Table 3: Statistics for the number of 3D nets generated by" loading="lazy"></a><figcaption>Table 3 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=6">原文 PDF 第 6 页</a></figcaption></figure></li>
+<li>原因分析：<code>viaLegal</code> 的目标仅仅是让重叠的终端“就近挪开”（最小化物理位移），这常常导致终端偏离了布线最顺畅的路径；而 BTAssign 是基于 MST 线长预测来主动挑选合法位置的。</li>
+<li><strong>图 8</strong> 提供了一个直观的二维版图投影，证明了紫色标注的键合终端严格分布在预设网格上，无任何重叠（保证了合法性）。<figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=7"><img src="figures/openalex-w4392680749/figure-8.png" alt="Figure 8: Illustration for our bonding terminal assignment" loading="lazy"></a><figcaption>Figure 8 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=7">原文 PDF 第 7 页</a></figcaption></figure></li>
+</ul>
+<p><strong>4.5 &amp; 4.6 运行时间剖析与广义模型对比</strong></p>
+<ul>
+<li><strong>运行时间（图 9）</strong>：<code>viaLegal</code> 为了合法化扫描耗费了巨大时间（占 81%）；而 BTAssign 巧妙利用了四叉树和最小费用流算法，使得分配时间显著缩短。整体来看，BTAssign 带来的额外运行时间（约 1.5 倍）远小于 <code>viaLegal</code>（约 5.2 倍），且在可接受范围内。<figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=7"><img src="figures/openalex-w4392680749/figure-9.png" alt="Figure 9: Runtime breakdown. The runtime overhead of our" loading="lazy"></a><figcaption>Figure 9 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=7">原文 PDF 第 7 页</a></figcaption></figure></li>
+<li><strong>模型评估（表 5）</strong>：作者尝试用商业数学求解器 Gurobi 直接去暴力解前文理想状态下的公式 1。结果显示，如果不缩小区域参数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>p</mi></mrow></math></span> 和采样率 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi></mrow></math></span>，Gurobi 会直接 <strong>MEMORY EXCEEDED（内存溢出）</strong>。即便极度缩小参数使得 Gurobi 能勉强跑出一个解，本文的启发式迭代算法（Iterative Bipartite Matching）得到的线长结果（如 159.46 vs 159.44）与数学最优解几乎一致，但运行时间（11.58秒 vs 6414.25秒）有着天壤之别。这有力地证明了作者将理论模型降级为分层迭代算法的合理性和工程价值。<figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=8"><img src="figures/openalex-w4392680749/table-5.png" alt="Table 5: Performance comparison between solving Formula (1)                   in advance. Naturally, our proposed BTAssign could be extended to" loading="lazy"></a><figcaption>Table 5 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C202-ISPD2024-BTAssign.pdf#page=8">原文 PDF 第 8 页</a></figcaption></figure></li>
+</ul>
+<hr />
+<h3>总结：贯穿全文的主线与局限性</h3>
+<p><strong>主线故事</strong>：
+这篇文章最初遇到的问题是：在先进的 3D 芯片堆叠中，连接上下两层的“触点（键合终端）”比芯片内部的“电线”粗得多。如果任由软件随意连接，触点就会打架重叠；如果等连完线再去生硬地扒拉触点解决重叠，原本最优的走线就会被扯乱，导致性能变差。
+为了解决这个问题，作者提出不要在事后补救，而要在连线（布线）<strong>之前</strong>就把触点位置分配好。作者先建立了一个数学上完美但算不出来的“广义分配模型”，随后通过两个巧妙的计算机科学手段——<strong>把一次性分配拆成一轮一轮地挑（迭代二分匹配）</strong>，以及<strong>把整块大芯片像切蛋糕一样切成无数小方块分别处理（四叉树分治）</strong>——最终用很小的计算代价，不仅保证了触点绝对不重叠（合法性），还顺便让后期的金属连线缩短了 1% 到 5%（布线感知）。</p>
+<p><strong>关键假设与局限性（不可过度推广之处）</strong>：</p>
+<ol>
+<li><strong>MST 代理假设</strong>：本文最核心的设计选择是用最小生成树（MST）来预测实际布线长度。虽然这在算法层很高效，但在极其拥挤的现代芯片实际布线中，绕线策略远比 MST 复杂。如果布线引擎遇到严重拥塞被迫大量绕道，MST 的预测就会失效。</li>
+<li><strong>网格参数敏感性</strong>：该方法极度依赖于人为设定的四叉树停止大小（参数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>p</mi><mo>=</mo><mn>50</mn><mi>μ</mi><mi>m</mi></mrow></math></span>）和采样密度（参数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi></mrow></math></span>）。如果超大网络过多，回溯阶段的可选终端质量会下降；如果 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi></mrow></math></span> 设置不当，要么找不出好解，要么依然会引发内存暴涨（见表 5）。</li>
+<li><strong>应用范围</strong>：本文明确针对具有大间距错位的混合键合技术（Hybrid Bonding）。对于终端极小、无严重间距错位的 3D 互连架构，这种预分配算法带来的提升可能微乎其微，甚至其额外的计算开销是不划算的。</li>
+</ol>
+</div></td></tr></table></body></html>

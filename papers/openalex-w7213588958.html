@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Predictive Structure to Thermal Conductivity Modeling Framework for BEOL Interconnect Stacks in Advanced Technology Nodes Enabled by Extensive Layer Resolved Thermal Measurements · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>Predictive Structure to Thermal Conductivity Modeling Framework for BEOL Interconnect Stacks in Advanced Technology Nodes Enabled by Extensive Layer Resolved Thermal Measurements</h1><p class="paper-note">Zifeng Huang, Yiyang Sun, Tianyu Jia, Runsheng Wang, Zhe Cheng · arXiv (Cornell University) · 2026 · <a href="https://doi.org/10.48550/arxiv.2609.20379">原文</a> · <a href="https://arxiv.org/pdf/2609.20379">PDF</a></p><p class="paper-note"></p><div class="paper-warning">图表提取提示：报告提到的 Figure 12, Figure 3, Figure 5, Figure 7 未能自动裁出；请查看原论文 PDF。</div><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>这是一篇关于先进半导体制造节点中，芯片后端互连线（BEOL）热导率（Thermal Conductivity）预测模型的系统性研究。为了帮助您准确理解本文，我们在进入具体章节前，先建立理解本文所需的系统全貌和基础背景知识。</p>
+<h3>系统全貌与核心背景补充</h3>
+<p><strong>芯片的层级结构与热流动</strong>：现代集成电路（芯片）在物理结构上主要分为两部分。最底层是<strong>前端（FEOL, Front End of Line）</strong>，这里包含了数以亿计的晶体管，是芯片进行计算和产生热量的主要源头。在晶体管上方，是**后端（BEOL, Back End of Line）**互连层，它由多层极其细微的金属线（通常是铜，Cu）和包裹它们的绝缘介质（Dielectric）交替堆叠而成，负责把下层的晶体管连接起来传递电信号。在传统的二维芯片中，前端产生的热量主要向下通过硅基底和散热器排走。</p>
+<p><strong>本文讨论的层级与问题背景</strong>：本文的研究对象完全聚焦于<strong>上方的 BEOL 互连层</strong>。随着芯片向三维集成（3D-ICs，即把多层晶体管芯片垂直堆叠）发展，热量很难再单一地向下排散，大量热量必须向上穿过极其复杂的 BEOL 互连层。然而，随着工艺进步（本文基于 22 纳米节点），这些铜互连线变得极其狭窄（纳米级）。在宏观物理中，铜是优良的导热体；但在纳米尺度下，由于尺寸效应和极其密集的材料交界面，热量在通过这些细线和绝缘层时会遇到巨大的阻力。传统的芯片热力学仿真往往假设这一层是一个均匀的、固定参数的材料，这在先进工艺下会导致严重的温度预测误差。本文的核心目的，就是通过真实的物理测量，建立一个能够根据芯片设计图纸（Layout，包括走线宽度、铜的密度等结构特征）自动且准确预测局部导热能力的数学模型。</p>
+<hr />
+<p>以下是对论文各章节的详细拆解与逻辑分析：</p>
+<h3>I. Introduction (引言)</h3>
+<p>引言部分确立了研究的动机和当前的行业痛点。作者指出，在 3D-ICs 中，BEOL 互连栈引入了更长、更复杂的热传输路径。同时，不断增加的互连密度进一步加剧了热积累（如论文 Fig. 1 所示，展示了从传统 2D 芯片到 2.5D/3D 封装演进过程中，热密度呈指数上升，BEOL 成为热瓶颈）。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.20379#page=3"><img src="figures/openalex-w7213588958/figure-1.png" alt="Figure 1: Motivation of this work: The rapid evolution of conventional chips toward Fig.          2.    Comparison    between     conventional   standalone" loading="lazy"></a><figcaption>Figure 1 · <a href="https://arxiv.org/pdf/2609.20379#page=3">原文 PDF 第 3 页</a></figcaption></figure>
+<p>作者在这里引出了一个关键论点：在先进 BEOL 工艺中，互连层的导热能力（由有效热导率 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>κ</mi></mrow></math></span> 表示，单位为 W/m-K）已经不再仅仅由块体铜和介质材料的固有属性决定，而是<strong>受到纳米级结构特征的强烈支配</strong>。这些结构特征包括互连线宽（Linewidth）和日益增加的铜/介质界面的贡献。因为传统的热模型忽略了这些结构带来的巨大差异，导致无法准确预测散热行为。</p>
+<p>为了解决这个问题，作者提出了一种“基于实验推导的、感知结构的热导率（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>κ</mi></mrow></math></span>）建模框架”。该框架结合了高精度的热学测量技术（TDTR）、<strong>有效介质理论（EMT, Effective Medium Theory，一种通过微观成分的比例和属性来推导复合材料宏观物理性质的物理模型）</strong>，以及真实的芯片布局信息，旨在建立一个通用的经验公式，实现对整层芯片和局部区域热导率的精确预测（如 Fig. 2 所示的研究全景对比图）。</p>
+<h3>II. Experimental Setup and Sample Preparation (实验设置与样品制备)</h3>
+<p>本节详细说明了作者是如何在真实的物理硬件上获取数据的，这涉及到了物理约束和测量方法的选择。</p>
+<p>为了获得真实的 BEOL 结构数据，作者选用了一块商业 22 nm 工艺节点的芯片。为了将测量误差降到最低并减少模型拟合时的未知参数，作者选择从最底层的五层互连层（M1 至 M5，即最靠近晶体管的金属层）开始测试。</p>
+<ul>
+<li><strong>样品制备（Fig. 3）</strong>：作者使用了等离子体聚焦离子束（Plasma FIB）逐层剥离芯片。这是一种利用高能离子束精确“铣削”掉表层材料的技术。暴露目标层后，作者在其表面沉积了一层铝（Al）薄膜。沉积铝是<strong>TDTR 测量技术的物理约束要求</strong>，因为 TDTR 依赖激光反射，需要一个高反射率且具有已知热学特性的金属层作为“传感器（Transducer）”。</li>
+<li><strong>测量方法 TDTR（Fig. 4 及其背景补充）</strong>：TDTR 全称是 Time-Domain Thermoreflectance（时域热反射技术）。它是一种泵浦-探测（pump-probe）光学技术。简单来说，它用一束激光（Pump）瞬间加热表面的铝膜，然后用另一束激光（Probe）测量铝膜表面反射率随时间的变化。因为金属的反射率与其温度相关，反射率下降的速度就反映了热量传导到下层（即芯片 BEOL 层）的速度。这种技术具有约 100 纳米的深度分辨率，非常适合测量薄膜材料。</li>
+<li><strong>参数提取（Fig. 5）</strong>：要从 TDTR 数据中反推出热导率 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>κ</mi></mrow></math></span>，模型必须预先知道待测层的<strong>体积热容（Volumetric Heat Capacity, <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>C</mi><mi>v</mi></msub></mrow></math></span>）</strong>。作者通过扫描电子显微镜（SEM）图像提取表面高亮像素来确定铜的面积占比，并结合透射电子显微镜（TEM）截面图确定体积占比，最终计算出每一层（M1-M5）的有效体积热容。这是为了给后续的 TDTR 数据拟合提供硬性物理输入。</li>
+</ul>
+<h3>III. Results and Discussion (结果与讨论)</h3>
+<p>本节是论文的核心，分为现象观察、微观溯源、理论拟合和模型建立四个逻辑步骤。</p>
+<p><strong>1. 现象观察：极低的热导率</strong>
+作者在进行 TDTR 测量时，分别使用了 5 倍和 20 倍的物镜（Fig. 6a-b）。<em>作者做出这一实验选择的原因</em>是为了改变激光光斑的大小，从而排除光斑尺寸对提取出的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>κ</mi></mrow></math></span> 值的影响，证明测量结果的可靠性。结果（Fig. 6c）显示，无论用哪种镜头，测量出的有效 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>κ</mi></mrow></math></span> 值都极其低下，逼近 1 W/m-K（作为参考，块体铜的热导率约为 400 W/m-K）。作者推断，这是由于极其密集的纳米级界面以及包裹铜线的钽（Ta）阻挡层引入了巨大的<strong>热边界电阻（TBR, Thermal Boundary Resistance，指热量在穿过两种不同材料边界时遇到的阻力）</strong>。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.20379#page=3"><img src="figures/openalex-w7213588958/figure-6.png" alt="Figure 6: TDTR data analysis and fitting: (a)-(b) Measured TDTR ratio signals" loading="lazy"></a><figcaption>Figure 6 · <a href="https://arxiv.org/pdf/2609.20379#page=3">原文 PDF 第 3 页</a></figcaption></figure>
+<p><strong>2. 微观溯源与 EMT 模型拟合</strong>
+为了证实上述推断，作者使用了明场透射电镜（BF-TEM）和 X 射线能谱分析（EDS，用于显示元素分布）观察物理结构（Fig. 7）。图像证实了极其狭窄（小于 100 纳米）的铜线被致密的 Ta 阻挡层包围。
+基于此，作者在 Fig. 8 引入了有效介质理论（EMT）。他们将导致 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>κ</mi></mrow></math></span> 下降的原因拆分为两个物理机制：</p>
+<ul>
+<li><strong>铜线内部的晶界散射（GB scattering）</strong>：电子在狭窄的铜线内部移动时会频繁撞击晶格边界，导致导热能力下降（对应 Fig. 8b）。</li>
+<li><strong>界面处的 TBR</strong>：提取出介质层本身的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>κ</mi></mrow></math></span>（假设上限为 1.5 W/m-K）后，通过 EMT 模型拟合实验数据，提取出了铜/介质界面的 TBR 真实数值（Fig. 8c-d），发现与前人研究相符，证实了物理机制的合理性。</li>
+</ul>
+<p><strong>3. 建立经验预测模型（本文最大贡献）</strong>
+虽然 EMT 揭示了物理本质，但每次都要做电镜和光电测试显然无法用于工业芯片设计。因此，作者基于超过 40 组不同层的 TDTR 测量数据，总结出了一个高度泛化的经验数学模型（Fig. 9）。该公式旨在只输入两个芯片设计参数——<strong>线宽（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>w</mi></mrow></math></span>）<strong>和</strong>铜的体积分数（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi></mrow></math></span>）</strong>，就能直接计算出该区域的有效热导率 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>κ</mi><mrow><mi>e</mi><mi>f</mi><mi>f</mi></mrow></msub></mrow></math></span>：</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.20379#page=4"><img src="figures/openalex-w7213588958/figure-9.png" alt="Figure 9: Empirical κ prediction model of BEOL interconnects as a function of w and" loading="lazy"></a><figcaption>Figure 9 · <a href="https://arxiv.org/pdf/2609.20379#page=4">原文 PDF 第 4 页</a></figcaption></figure>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>κ</mi><mrow><mi>e</mi><mi>f</mi><mi>f</mi></mrow></msub><mo>=</mo><mfrac><mrow><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>f</mi><mo stretchy="false">)</mo><msub><mi>κ</mi><mrow><mi>d</mi><mi>i</mi><mi>e</mi></mrow></msub><mo>+</mo><mi>f</mi><msub><mi>κ</mi><mrow><mi>C</mi><mi>u</mi></mrow></msub><mfrac><mrow><mi>w</mi></mrow><mrow><mi>w</mi><mo>+</mo><mi>A</mi></mrow></mfrac></mrow><mrow><mn>1</mn><mo>+</mo><mi>B</mi><mfrac><mrow><mi>f</mi></mrow><mrow><mi>w</mi></mrow></mfrac><mo stretchy="false">(</mo><mn>1</mn><mo>+</mo><mfrac><mrow><mi>w</mi></mrow><mrow><msub><mi>w</mi><mn>0</mn></msub></mrow></mfrac><msup><mo stretchy="false">)</mo><mrow><mo>−</mo><mn>1</mn></mrow></msup></mrow></mfrac></mrow></math>
+</div>
+<p><em>公式变量逐一解释</em>：</p>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>κ</mi><mrow><mi>e</mi><mi>f</mi><mi>f</mi></mrow></msub></mrow></math></span>: 预测出的有效热导率。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi></mrow></math></span>: 铜的体积分数（设计图纸已知）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>κ</mi><mrow><mi>d</mi><mi>i</mi><mi>e</mi></mrow></msub></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>κ</mi><mrow><mi>C</mi><mi>u</mi></mrow></msub></mrow></math></span>: 介质和块体铜的固有热导率（固定常数）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>w</mi></mrow></math></span>: 互连线宽（设计图纸已知）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>A</mi></mrow></math></span>: 电子平均自由程，作者取值为 39 nm，这是<strong>受限于铜材料本身的物理常数</strong>，用于在分子项中修正线宽变窄带来的尺寸效应。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>B</mi></mrow></math></span>: 拟合参数，代表铜/介质界面 TBR 的强度。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>w</mi><mn>0</mn></msub></mrow></math></span>: 拟合参数，代表界面效应特征衰减长度的线宽阈值。当实际线宽 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>w</mi></mrow></math></span> 远大于 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>w</mi><mn>0</mn></msub></mrow></math></span> 时，公式分母的后半部分趋于 0，界面效应减弱。</li>
+</ul>
+<p><em>结论推演</em>：模型最佳拟合得出 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>w</mi><mn>0</mn></msub><mo>≈</mo><mn>120</mn></mrow></math></span> nm。该公式揭示了一个反直觉的权衡现象（Fig. 9b-c）：在超窄线宽下，一味地增加铜的比例（增大 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi></mrow></math></span>）并不能提高导热率，反而可能因为引入了更多的界面阻力（TBR惩罚）而降低导热率。只有在线宽较宽时，增加铜占比才有益。</p>
+<p><strong>4. 布局感知的空间热导率重建</strong>
+为了在二维平面上重现局部热导率的不均匀性，作者提出了空间重建方法（Fig. 10）。他们将真实的芯片设计图纸（Layout）按 500 nm 的单元尺寸（cell size，<em>这是作者在计算效率和分辨率之间做出的设计选择</em>）进行网格离散化。提取每个网格内的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>w</mi></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi></mrow></math></span>，代入前文建立的模型，从而生成了一张高分辨率的二维 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>κ</mi></mrow></math></span> 分布图。为了验证这一基于纯图纸的预测，作者再次使用 TDTR 以 3 μm 和 10 μm 的空间步长进行实际扫描（Fig. 11），结果显示预测模型准确捕捉到了相邻低热导率条带间的分布特征。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.20379#page=4"><img src="figures/openalex-w7213588958/figure-10.png" alt="Figure 10: Effective κ map extracted from layout information: (a) Schematic" loading="lazy"></a><figcaption>Figure 10 · <a href="https://arxiv.org/pdf/2609.20379#page=4">原文 PDF 第 4 页</a></figcaption></figure><figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.20379#page=4"><img src="figures/openalex-w7213588958/figure-11.png" alt="Figure 11: Layer-resolved κ mapping by TDTR: (a)" loading="lazy"></a><figcaption>Figure 11 · <a href="https://arxiv.org/pdf/2609.20379#page=4">原文 PDF 第 4 页</a></figcaption></figure>
+<h3>IV. Finite Element Simulation (有限元仿真)</h3>
+<p>本节是将作者提出的模型应用于实际散热预测的验证。作者使用了 COMSOL 软件进行<strong>有限元分析（FEA, Finite Element Analysis，一种将连续空间划分为离散网格以数值求解热传导偏微分方程的方法）</strong>。</p>
+<p><em>为什么做这个实验</em>：在传统的芯片仿真中，往往将一整层互连层视为一个整体，赋予一个“平均”的热导率。作者想证明，如果不考虑局部的极低热导率区域，会导致严重的设计失误。
+<em>实验设置与结果（Fig. 12）</em>：作者在仿真中保持总发热功率完全相同，但改变了输入的热导率 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>κ</mi></mrow></math></span> 分布图的空间分辨率（从 10 μm 一直细化到模型支持的 0.5 μm）。结果显示（Fig. 12c），<strong>空间分辨率越精细，仿真得出的最高温度上升幅度就越大</strong>。
+<em>推断逻辑</em>：因为精细的网格捕捉到了那些局部被介质包裹、热导率极差的“死角”（热点），热量在这些局部微小区域无法散除。这证明了传统的“平均化材料属性”模型会严重低估局部的热点（Hotspot）温度，凸显了引入真实、高分辨率 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>κ</mi></mrow></math></span> 分布进行 BEOL 热分析的绝对必要性。</p>
+<h3>V. Conclusion (结论)</h3>
+<p>作者总结了他们建立的这套框架的价值所在：通过大规模 TDTR 实验推导出结构-热导率经验模型，再利用真实的芯片图纸重建分布。如 Fig. 13 的对比表格所示，相比于以前纯粹依赖仿真或需要复杂全结构建模的方法，本框架实现了一种“通过简化的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>κ</mi></mrow></math></span> 提取方法实现高效预测，同时保持物理相关性”的折中与突破。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.20379#page=4"><img src="figures/openalex-w7213588958/figure-13.png" alt="Figure 13: Comparison of the proposed framework with previous BEOL thermal" loading="lazy"></a><figcaption>Figure 13 · <a href="https://arxiv.org/pdf/2609.20379#page=4">原文 PDF 第 4 页</a></figcaption></figure>
+<hr />
+<h3>全文主线与局限性分析</h3>
+<p><strong>贯穿全文的主线</strong>：
+芯片由传统的平面走向 3D 堆叠，<strong>导致散热路径被复杂的后端互连线（BEOL）严重阻挡（发现问题）</strong>。由于纳米尺度下界面热阻剧增，传统的宏观材料热力学模型完全失效。为了准确评估温度以防芯片烧毁，作者<strong>通过直接破坏物理芯片并用激光（TDTR）测量其真实散热能力（获取真值）</strong>，从中分离出不同因素的影响，并<strong>总结出一个纯数学的经验公式（建立模型）</strong>。有了这个公式，未来的芯片设计师<strong>只需要输入新芯片的图纸（线宽和铜密度），就能直接生成一张高精度的散热地图（解决问题）</strong>，并将其导入 COMSOL 证明了传统仿真会严重低估芯片的热点温度风险。</p>
+<p><strong>关键假设、局限性与推广边界</strong>：</p>
+<ol>
+<li><strong>工艺绑定的参数限制</strong>：模型中的拟合参数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>B</mi></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>w</mi><mn>0</mn></msub></mrow></math></span> 强依赖于本文所测试的 22 nm 商业工艺中的 Ta 阻挡层和特定的低 k 介质材料。如果未来的工艺节点（如 2 nm）改用了不同的阻挡层材料（如钌 Ru）或完全不同的互连金属，这些经验常数必须通过重新进行 TDTR 实验来重新标定，结论（如 120nm 的阈值）不能被盲目跨工艺推广。</li>
+<li><strong>介质热导率的假设</strong>：在 Fig. 8 的拟合中，介质 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>κ</mi><mrow><mi>d</mi><mi>i</mi><mi>e</mi></mrow></msub></mrow></math></span> 的上限被强行假设为固定的 1.5 W/m-K。虽然这符合经验常识，但在极其复杂的实际工艺中，介质层可能因为制造应力或微孔隙分布产生波动，这部分变异在当前模型中被固定项掩盖了。</li>
+<li><strong>单元格离散化的精度权衡</strong>：在图纸重建阶段（Fig. 10），作者自行选择了 500 nm 作为离散化单元（Cell）。如果发热源的尺度小于 500 nm（例如极小的高频 FinFET 或 GAA 晶体管局部自热），当前的网格划分方法可能会产生截断误差。</li>
+</ol>
+</div></td></tr></table></body></html>
