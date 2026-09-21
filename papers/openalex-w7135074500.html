@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Partitioning-free 3D-IC Floorplanning · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>Partitioning-free 3D-IC Floorplanning</h1><p class="paper-note">Shuo Ren, Zhen Zhuang, Rongliang Fu, Leilei Jin, Libo Shen, Bin Yu, Tsung-Yi Ho · 2026 31st Asia and South Pacific Design Automation Conference (ASP-DAC) · 2026 · <a href="https://doi.org/10.1109/asp-dac66049.2026.11420430">原文</a> · <a href="https://arxiv.org/pdf/2609.13157">PDF</a></p><p class="paper-note"></p><div class="paper-warning">图表提取提示：报告提到的 Table V 未能自动裁出；请查看原论文 PDF。</div><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>当前日期是 2026-09-21。以下为您详细解读 2026 年发表在 arXiv 上的论文《Partitioning-free 3D-IC Floorplanning》（无预划分的 3D-IC 布局规划）。</p>
+<hr />
+<h3>全文核心主线与背景补充</h3>
+<p><strong>背景补充与系统全貌：</strong>
+在现代芯片设计（集成电路，IC）中，“布局规划”（Floorplanning）是物理设计流程中极关键的一环。可以将其想象为给一栋大楼规划房间：给定一系列具有特定面积、长宽比范围的逻辑模块（Blocks，如计算核心、缓存等），布局规划需要决定这些模块在硅片画布上的二维坐标（x, y），目标是在不发生重叠的前提下，使连接这些模块的连线总长度（线长）最短，并满足芯片的外形轮廓限制。</p>
+<p>随着摩尔定律放缓，二维（2D）芯片的平面连线变得越来越长，导致严重的信号延迟（RC延迟）。三维集成电路（3D IC）通过将多个硅晶粒（Die）垂直堆叠，把原本跨越整个平面的长线转化为垂直方向的短线，从而打破了这一瓶颈。本文主要针对<strong>面朝面（Face-to-Face, F2F）混合键合</strong>这种先进的 3D 封装技术。在 F2F 技术中，两个裸片的顶层金属层直接面对面键合，提供极高密度、极低延迟的垂直互连，这是本文研究的硬件事实基础。</p>
+<p><strong>本文面临的问题与演进逻辑：</strong>
+由于增加了一个垂直维度（Die 的分配，即 z 轴），3D 布局规划面临巨大的解空间。过往的方法走入两个极端：</p>
+<ol>
+<li><strong>“先划分，后布局”（Partitioning-first）</strong>：为了降低难度，先用图划分算法（如 FM 算法）硬性决定哪些模块去顶层 Die，哪些去底层 Die，然后再分别做 2D 布局。问题在于，过早地固定了 Die 分配，割裂了物理位置与逻辑连接的联系，导致跨 Die 通信代价极高，且面积难以平衡。</li>
+<li><strong>“3D 原生表示”（3D-native）</strong>：将 2D 的表示方法（如序列对）硬套到 3D 空间，使用模拟退火等启发式算法暴力搜索。这会导致组合爆炸，计算极慢，且难以直接对延迟进行数学优化。</li>
+</ol>
+<p><strong>本文的解决方案（GREAT3D）：</strong>
+作者提出了一种“无预划分”（Partitioning-free）的分析式框架，直接在 3D 空间中联合优化模块的放置和 Die 的分配。其核心逻辑是：先用半正定规划（SDP）将模块当成“软球体”在连续的三维空间中进行全局摆放，靠得近的模块自然具有更强的“同 Die 亲和力”；接着，利用这种连续的 z 轴排序，通过动态规划（DP）智能地“切一刀”，决定上下 Die 的归属以完美平衡面积；最后，在各自的 Die 上使用非线性优化（L-BFGS-B）将软球体推开，变成不重叠的合法矩形。</p>
+<hr />
+<h3>I. Introduction (引言) 与 II. Preliminaries (预备知识与问题建模)</h3>
+<p>这一部分主要建立数学模型，说明如何将系统级的性能指标（如 CPI）转化为布局规划器可以理解的几何优化目标。</p>
+<h4>1. 基础物理量与概念定义</h4>
+<ul>
+<li><strong>网络与连接</strong>：输入是一个网表（Netlist），包含模块集合 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>V</mi><mi>b</mi></msub><mo>=</mo><mo stretchy="false">{</mo><msub><mi>b</mi><mn>1</mn></msub><mo>,</mo><mo>.</mo><mo>.</mo><mo>.</mo><mo>,</mo><msub><mi>b</mi><mi>n</mi></msub><mo stretchy="false">}</mo></mrow></math></span>，每个模块 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>b</mi><mi>i</mi></msub></mrow></math></span> 有指定的面积 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>a</mi><mi>i</mi></msub></mrow></math></span>。软模块（长宽可变）需满足长宽比上下界 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">[</mo><msubsup><mi>r</mi><mi>i</mi><mrow><mo>min</mo></mrow></msubsup><mo>,</mo><msubsup><mi>r</mi><mi>i</mi><mrow><mo>max</mo></mrow></msubsup><mo stretchy="false">]</mo></mrow></math></span>。所有模块必须被放置在指定的 Die 轮廓 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">(</mo><mi>W</mi><mo>,</mo><mi>H</mi><mo stretchy="false">)</mo></mrow></math></span> 内。</li>
+<li><strong>HPWL（半周线长）</strong>：衡量连线代价的工业标准。对于一个连接多个模块的信号网（Net），其 HPWL 是能包围这些模块中心的最小矩形框的半周长。</li>
+<li><strong>连通性矩阵</strong>：为了进行连续数学优化，多引脚的网会被分解为两两之间的连接。由此得到基于网表的初始连通性矩阵 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>A</mi><mi>o</mi></msup></mrow></math></span>，其中元素 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msubsup><mi>A</mi><mrow><mi>i</mi><mi>j</mi></mrow><mi>o</mi></msubsup></mrow></math></span> 表示模块 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>j</mi></mrow></math></span> 之间的连接强度。</li>
+</ul>
+<h4>2. 系统级性能建模 (CPI 模型)</h4>
+<p>软件、架构层面的性能通常用 CPI（每指令周期数，Cycles Per Instruction）来衡量。本文采用了一个经验公式将 CPI 与物理布局绑定（公式 1）：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>ℋ</mi><mo stretchy="false">(</mo><mi>S</mi><mo>,</mo><mi>L</mi><mo>,</mo><mtext>MP</mtext><mo stretchy="false">)</mo><mo>=</mo><msub><mtext>CPI</mtext><mrow><mtext>sta</mtext></mrow></msub><mo>+</mo><msub><mi>α</mi><mn>1</mn></msub><mo>·</mo><mo stretchy="false">(</mo><msub><mtext>lat</mtext><mrow><mtext>ppi</mtext></mrow></msub><mo>−</mo><msub><mtext>lat</mtext><mrow><mtext>sta</mtext></mrow></msub><mo stretchy="false">)</mo></mrow></math>
+</div>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mtext>CPI</mtext><mrow><mtext>sta</mtext></mrow></msub></mrow></math></span> 是设计的静态基础延迟（常数）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mtext>lat</mtext><mrow><mtext>ppi</mtext></mrow></msub><mo>=</mo><mi>⟨</mi><mi>S</mi><mo>,</mo><mi>L</mi><mi>⟩</mi></mrow></math></span> 是与布局相关的延迟项，由结构矩阵 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi></mrow></math></span>（拓扑决定的通信强度）和成对延迟矩阵 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>L</mi></mrow></math></span>（物理距离决定的延迟）的<strong>弗罗贝尼乌斯内积</strong>算出。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mtext>MP</mtext></mrow></math></span> 代表微架构参数。</li>
+<li><strong>设计选择</strong>：这个公式说明，要想降低系统整体延迟，布局规划器必须缩短那些<strong>在架构上通信频繁且对延迟敏感</strong>的模块间的物理距离（即降低 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>L</mi></mrow></math></span>）。</li>
+</ul>
+<h4>3. 统一的优化目标 (Unified Objective)</h4>
+<p>作者将传统的线长目标（由矩阵 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>A</mi><mi>o</mi></msup></mrow></math></span> 驱动）与 CPI 延迟目标合并，构造了一个全新的加权连通性矩阵 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>A</mi></mrow></math></span>（公式 10）：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>A</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>μ</mi><mo stretchy="false">)</mo><mo>·</mo><msubsup><mi>A</mi><mrow><mi>i</mi><mi>j</mi></mrow><mi>o</mi></msubsup><mo>+</mo><mi>μ</mi><mo>·</mo><msub><mi>S</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>·</mo><msub><mi>λ</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub></mrow></math>
+</div>
+<p>这里 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>λ</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub></mrow></math></span> 吸收了延迟相关的比例因子，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>μ</mi><mo>∈</mo><mo stretchy="false">[</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo stretchy="false">]</mo></mrow></math></span> 是一个权重，用来在“缩小总线长”和“降低关键路径 CPI 延迟”之间做权衡。
+最终，3D 布局规划的问题被转化为最小化加权距离总和（公式 11）：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>ℱ</mi><mo>=</mo><mi>⟨</mi><mi>A</mi><mo>,</mo><mi>D</mi><mi>⟩</mi></mrow></math>
+</div>
+<p>其中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>D</mi></mrow></math></span> 是模块间欧氏距离平方的代理矩阵（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>D</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><msub><mi>d</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub></mrow></math></span>）。最小化 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>ℱ</mi></mrow></math></span> 就是让 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>A</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub></mrow></math></span> 大（连接紧密或延迟敏感）的模块，其物理距离 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>D</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub></mrow></math></span> 尽量小。</p>
+<hr />
+<h3>III. Methodology of GREAT3D (方法论)</h3>
+<p>本节是文章的核心，GREAT3D 框架由三个前后衔接的阶段组成：3D SDP 全局优化、基于 DP 的 Die 分配、2D 连续细化。数据流向为：网表 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>→</mo></mrow></math></span> 连续 3D 坐标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>→</mo></mrow></math></span> 离散 Die 分配 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>→</mo></mrow></math></span> 合法的无重叠 2D 布局。</p>
+<h4>第一阶段：3D SDP Optimization (基于半正定规划的 3D 全局优化)</h4>
+<ul>
+<li><strong>背景与问题</strong>：直接求解不重叠的矩形摆放是一个 NP-Hard 问题。作者采用连续松弛（Continuous Relaxation），暂时不考虑矩形的形状和绝对不重叠，而是把模块当成空间中的点，将“摆放”问题转化为“图嵌入”问题。</li>
+<li><strong>技术手段</strong>：使用半正定规划（SDP）。这是一种凸优化技术。作者构造了格拉姆矩阵（Gram matrix）<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>G</mi><mo>=</mo><mi>X</mi><msup><mi>X</mi><mi>T</mi></msup></mrow></math></span>（其中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>X</mi></mrow></math></span> 是 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mo>×</mo><mn>3</mn></mrow></math></span> 的坐标矩阵），并将优化目标转化为对一个增广矩阵 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Z</mi><mo>∈</mo><msubsup><mi>𝕊</mi><mo>+</mo><mrow><mi>n</mi><mo>+</mo><mn>3</mn></mrow></msubsup></mrow></math></span> 的优化。</li>
+<li><strong>约束与降维</strong>：为了保证解出的坐标确实在三维空间内，需要一个秩约束（Rank Constraint，约束矩阵的秩为 3）。文章通过引入惩罚项 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>α</mi><mi>⟨</mi><msup><mi>W</mi><mo>*</mo></msup><mo>,</mo><mi>Z</mi><mi>⟩</mi></mrow></math></span> 来抑制高维空间的能量，迫使解向 3 维坍缩。同时，公式 (19) 施加了一个弱约束，要求任意两点间的距离平方大于它们等效半径之和的平方，避免所有点缩成一团。</li>
+<li><strong>输出说明</strong>：这一步解出后，每个模块获得了一个连续的三维坐标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo>,</mo><mi>z</mi><mo stretchy="false">)</mo></mrow></math></span>。注意，<strong>此时的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>z</mi></mrow></math></span> 坐标并不是真实的物理高度，而是一个“软分类”信号</strong>—— <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>z</mi></mrow></math></span> 坐标相近的模块，说明它们在全局拓扑中连接紧密，理应被放在同一个 Die 上。</li>
+</ul>
+<h4>第二阶段：DP-based Die Assignment Refinement (基于动态规划的 Die 分配)</h4>
+<ul>
+<li><strong>背景与问题</strong>：上一步得到了连续的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>z</mi></mrow></math></span> 轴排序。过往的方法（例如本文引用的作者早期工作 [1]）采用简单的“中位数切割”（Median-cut）：直接把 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>z</mi></mrow></math></span> 排序前 50% 的模块扔给底层 Die，后 50% 扔给顶层 Die。</li>
+<li><strong>为什么中位数切割不好？</strong> 现实中每个模块面积 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>a</mi><mi>i</mi></msub></mrow></math></span> 大小不一，强行平分数量会导致两层 Die 的总面积极度不平衡，可能违背物理轮廓限制；此外，固定在中位数切一刀，可能会把原本紧密连接（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>z</mi></mrow></math></span> 坐标非常接近）的模块簇强行劈开，增加跨 Die 连线。</li>
+<li><strong>作者的设计（Algorithm 1）</strong>：
+<ol>
+<li>保持 SDP 算出的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>z</mi></mrow></math></span> 坐标升序排列，这意味着保留了全局连通性的“空间连贯性”。</li>
+<li>目标是找出一个<strong>连续的区间</strong> <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">[</mo><mi>s</mi><mo>,</mo><mi>e</mi><mo stretchy="false">]</mo></mrow></math></span> 分配给底层 Die，剩下的分配给顶层 Die。</li>
+<li>利用前缀和（Prefix-sum）数组快速计算任意区间 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">[</mo><mi>s</mi><mo>,</mo><mi>e</mi><mo stretchy="false">]</mo></mrow></math></span> 内模块的总面积。</li>
+<li>通过嵌套循环遍历所有可能的连续区间（总共 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mfrac><mrow><mi>n</mi><mo stretchy="false">(</mo><mi>n</mi><mo>+</mo><mn>1</mn><mo stretchy="false">)</mo></mrow><mrow><mn>2</mn></mrow></mfrac></mrow></math></span> 种可能），寻找累加面积最接近理想面积 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi></mrow></math></span>（单层可用面积的一半）的区间。</li>
+</ol>
+</li>
+<li><strong>结论支持</strong>：这种方法（图 3 所示）既实现了极佳的面积平衡，又因为是沿着 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>z</mi></mrow></math></span> 序切出的连续区间，极少切断强连接的模块簇，兼顾了热点连线。</li>
+</ul>
+<h4>第三阶段：2D Refinement (2D 连续细化)</h4>
+<ul>
+<li><strong>背景与问题</strong>：此时每个 Die 上分配了一批模块，且继承了 SDP 算出的粗略 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">(</mo><mi>x</mi><mo>,</mo><mi>y</mi><mo stretchy="false">)</mo></mrow></math></span> 坐标。但这些模块可能有重叠，且可能超出 Die 的边界 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">(</mo><mi>W</mi><mo>,</mo><mi>H</mi><mo stretchy="false">)</mo></mrow></math></span>。需要将其合法化。</li>
+<li><strong>技术手段（Algorithm 2）</strong>：作者将其公式化为一个带边界约束的连续优化问题，并使用 <strong>L-BFGS-B</strong>（一种拟牛顿法，适合处理大规模、带边界约束的非线性优化）进行求解。</li>
+<li><strong>目标函数（公式 25）</strong>：<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mo>∑</mo><msub><mi>A</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>·</mo><mi>ϕ</mi><mo stretchy="false">(</mo><msub><mi>x</mi><mi>i</mi></msub><mo>,</mo><msub><mi>x</mi><mi>j</mi></msub><mo stretchy="false">)</mo><mo>+</mo><mi>β</mi><msub><mi>f</mi><mrow><mtext>pen</mtext></mrow></msub><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></math></span>。
+<ul>
+<li>前半部分 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>ϕ</mi></mrow></math></span> 依然是试图最小化线长。作者交替使用 L1 范数（曼哈顿距离）和 L2 范数（欧几里得距离），这是一种防陷入局部最优的技巧（由 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>α</mi><mn>3</mn></msub></mrow></math></span> 控制）。</li>
+<li>后半部分 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>f</mi><mrow><mtext>pen</mtext></mrow></msub></mrow></math></span>（公式 27）是<strong>软间距惩罚项</strong>。如果两个模块中心的距离小于它们等效半径之和（发生了重叠），就会产生一个二次惩罚。</li>
+</ul>
+</li>
+<li><strong>自适应机制</strong>：如果在优化过程中发现重叠依然严重，算法会动态调大惩罚权重 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>β</mi></mrow></math></span>（line 9-11），强迫模块散开，直到最终收敛成一个基本无重叠的二维布局（如图 5、图 6 的红框内所示）。</li>
+</ul>
+<hr />
+<h3>IV. Experimental Results (实验结果)</h3>
+<p>本节用实验证明前文设计的有效性。所用基准测试集为 GSRC 和最近的 ICCAD 2024 ATPlace（注意：年份设定为 2026 年，故 2024 年的测试集是合理的近期标准）。</p>
+<h4>1. 与现有技术对比 (Table I)</h4>
+<ul>
+<li><strong>实验设置</strong>：对比了四大类方法。一类是基于 FM 或 Spectral 划分的先划分后布局法（FM+AR 等），一类是 3D 原生序列对启发式搜索（GSP, TA3D），还有一个是作者自己早期的中位数切割法 [1]。</li>
+<li><strong>结论</strong>：在 GSRC 测试集上，GREAT3D 在线长（WL）上彻底碾压了所有基准。比“先划分”方法好约 1.84 - 2.96 倍，比原生 3D 方法好 2.40 - 2.74 倍，同时运行时间（Time）保持在数十秒级别，远快于动辄几百上千秒的原生 3D 启发式算法。这证明了 SDP 全局视角的优越性以及避免组合爆炸的优势。</li>
+</ul>
+<h4>2. 消融实验与 CPI 收益 (Table III &amp; Figure 8)</h4>
+<ul>
+<li><strong>设计目的</strong>：验证第二阶段“基于 DP 的 Die 分配”到底有没有用。</li>
+<li><strong>结论</strong>：表 3 显示，相比于不使用 DP（即使用中位数切割），加入 DP 使线长又优化了 1.45 倍。图 8 显示，加入 DP 后，系统的 CPI 降低了 9.5% - 17.8%。这印证了前文推理：聪明的面积平衡切割法能有效保护关键路径，降低系统延迟。</li>
+</ul>
+<h4>3. 跨 Die 连通性与面积平衡 (Table V)</h4>
+<ul>
+<li><strong>指标解释</strong>：“Area bal.” 代表面积平衡度，1.0 完美平衡。</li>
+<li><strong>结论</strong>：GREAT3D 的面积平衡度高达 0.962（近乎完美）。虽然“先划分”方法（如 Spectral）的跨 Die 线长比例（Inter-die %）极低（12%），但那是靠强行把相关模块塞在同一层换来的，导致单层内拥挤不堪，总线长极差（154.1）。GREAT3D 在保持合理跨 Die 比例（49%）的同时，实现了最小的总线长（80.4），说明它找到了真正的全局最优解。</li>
+</ul>
+<h4>4. 后端全局布线验证 (Table VI)</h4>
+<ul>
+<li><strong>为什么做这个实验？</strong> 布局规划（Floorplanning）给出的只是模块的坐标，到底这个坐标好不好，最终要看布线工具（Router）能不能在不产生短路（Congestion Overflow，拥塞溢出）的情况下把线连起来。这是极其重要的实际工程验证。</li>
+<li><strong>结论</strong>：通过实际导入 OpenROAD 开源 EDA 工具流，GREAT3D 产生的布局溢出值（Overflow）仅为 399，比 FM 基准低 91.4%，比 TA3D 低 74.5%。这表明 GREAT3D 生成的布局在物理层面上是最具可布线性（Routable）的。</li>
+</ul>
+<hr />
+<h3>V. Conclusion (结论与局限性)</h3>
+<p><strong>总结全文主线：</strong>
+本文针对 F2F 3D-IC 布局规划中“预划分导致线长暴增”和“3D 原生搜索导致时间爆炸”的两难困境，提出了一套平滑、连贯的数学解析框架（GREAT3D）。它巧妙地用连续的 3D 凸优化（SDP）感知全局拓扑，用聪明的离散搜索（DP 区间扫描）解决面积平衡与 Die 分配，最后用拟牛顿法（L-BFGS-B）完成局部合法化。该框架不但大幅优化了物理线长，还首次在优化循环中通过 CPI 模型直接降低了系统级延迟。</p>
+<p><strong>关键假设与局限性（客观分析）：</strong></p>
+<ol>
+<li><strong>同构 Die 假设</strong>：文章在公式 (21) 中假设上下两个 Die 具有相同的轮廓大小和形状，且将总目标面积 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi></mrow></math></span> 设为总面积的一半。如果面对异构 3D 堆叠（如顶层小、底层大），当前的 DP 划分逻辑需要修改。</li>
+<li><strong>热量限制未被考虑</strong>：正如作者在结论最后指出的，3D 堆叠会导致严重的散热问题。本文目前的统一目标函数仅考虑了线长和 CPI（延迟），暂时没有纳入热感知（Thermal-aware）惩罚项。这是一个明确承认的局限，不应将其过度推广至高功耗场景而忽略散热验证。</li>
+<li><strong>形状松弛的局限</strong>：基于软球体半径碰撞的惩罚项（公式 27）是一种有效的连续代理，但在极度拥挤、利用率接近极限的设计中，圆形松弛转化为严格不重叠矩形的过程可能会遇到收敛困难，依赖于超参数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>β</mi></mrow></math></span> 的精细调节。</li>
+</ol>
+</div></td></tr></table></body></html>
