@@ -23,7 +23,7 @@
 </style>
 </head><body><table id="tlayout"><tr valign="top">
 <td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
-<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>Partitioning-free 3D-IC Floorplanning</h1><p class="paper-note">Shuo Ren, Zhen Zhuang, Rongliang Fu, Leilei Jin, Libo Shen, Bin Yu, Tsung-Yi Ho · 2026 31st Asia and South Pacific Design Automation Conference (ASP-DAC) · 2026 · <a href="https://doi.org/10.1109/asp-dac66049.2026.11420430">原文</a> · <a href="https://arxiv.org/pdf/2609.13157">PDF</a></p><p class="paper-note"></p><div class="paper-warning">图表提取提示：报告提到的 Table V 未能自动裁出；请查看原论文 PDF。</div><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>当前日期是 2026-09-21。以下为您详细解读 2026 年发表在 arXiv 上的论文《Partitioning-free 3D-IC Floorplanning》（无预划分的 3D-IC 布局规划）。</p>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>Partitioning-free 3D-IC Floorplanning</h1><p class="paper-note">Shuo Ren, Zhen Zhuang, Rongliang Fu, Leilei Jin, Libo Shen, Bin Yu, Tsung-Yi Ho · 2026 31st Asia and South Pacific Design Automation Conference (ASP-DAC) · 2026 · <a href="https://doi.org/10.1109/asp-dac66049.2026.11420430">原文</a> · <a href="https://arxiv.org/pdf/2609.13157">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>当前日期是 2026-09-21。以下为您详细解读 2026 年发表在 arXiv 上的论文《Partitioning-free 3D-IC Floorplanning》（无预划分的 3D-IC 布局规划）。</p>
 <hr />
 <h3>全文核心主线与背景补充</h3>
 <p><strong>背景补充与系统全貌：</strong>
@@ -90,7 +90,7 @@
 <li>通过嵌套循环遍历所有可能的连续区间（总共 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mfrac><mrow><mi>n</mi><mo stretchy="false">(</mo><mi>n</mi><mo>+</mo><mn>1</mn><mo stretchy="false">)</mo></mrow><mrow><mn>2</mn></mrow></mfrac></mrow></math></span> 种可能），寻找累加面积最接近理想面积 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi></mrow></math></span>（单层可用面积的一半）的区间。</li>
 </ol>
 </li>
-<li><strong>结论支持</strong>：这种方法（图 3 所示）既实现了极佳的面积平衡，又因为是沿着 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>z</mi></mrow></math></span> 序切出的连续区间，极少切断强连接的模块簇，兼顾了热点连线。</li>
+<li><strong>结论支持</strong>：这种方法（图 3 所示）既实现了极佳的面积平衡，又因为是沿着 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>z</mi></mrow></math></span> 序切出的连续区间，极少切断强连接的模块簇，兼顾了热点连线。<figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.13157#page=7"><img src="figures/openalex-w7135074500/figure-3.png" alt="Figure 3: Illustration of the DP-based die assignment refinement. Given          z-ordering. Unlike the median cut, this explicitly balances die" loading="lazy"></a><figcaption>Figure 3 · <a href="https://arxiv.org/pdf/2609.13157#page=7">原文 PDF 第 7 页</a></figcaption></figure></li>
 </ul>
 <h4>第三阶段：2D Refinement (2D 连续细化)</h4>
 <ul>
@@ -102,7 +102,7 @@
 <li>后半部分 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>f</mi><mrow><mtext>pen</mtext></mrow></msub></mrow></math></span>（公式 27）是<strong>软间距惩罚项</strong>。如果两个模块中心的距离小于它们等效半径之和（发生了重叠），就会产生一个二次惩罚。</li>
 </ul>
 </li>
-<li><strong>自适应机制</strong>：如果在优化过程中发现重叠依然严重，算法会动态调大惩罚权重 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>β</mi></mrow></math></span>（line 9-11），强迫模块散开，直到最终收敛成一个基本无重叠的二维布局（如图 5、图 6 的红框内所示）。</li>
+<li><strong>自适应机制</strong>：如果在优化过程中发现重叠依然严重，算法会动态调大惩罚权重 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>β</mi></mrow></math></span>（line 9-11），强迫模块散开，直到最终收敛成一个基本无重叠的二维布局（如图 5、图 6 的红框内所示）。<figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.13157#page=9"><img src="figures/openalex-w7135074500/figure-5.png" alt="Figure 5: Top die projection of the legalized 3D Fig. 6 Bottom die projection of the legalized Fig. 7 Normalized wirelength surface versus" loading="lazy"></a><figcaption>Figure 5 · <a href="https://arxiv.org/pdf/2609.13157#page=9">原文 PDF 第 9 页</a></figcaption></figure></li>
 </ul>
 <hr />
 <h3>IV. Experimental Results (实验结果)</h3>
@@ -115,7 +115,7 @@
 <h4>2. 消融实验与 CPI 收益 (Table III &amp; Figure 8)</h4>
 <ul>
 <li><strong>设计目的</strong>：验证第二阶段“基于 DP 的 Die 分配”到底有没有用。</li>
-<li><strong>结论</strong>：表 3 显示，相比于不使用 DP（即使用中位数切割），加入 DP 使线长又优化了 1.45 倍。图 8 显示，加入 DP 后，系统的 CPI 降低了 9.5% - 17.8%。这印证了前文推理：聪明的面积平衡切割法能有效保护关键路径，降低系统延迟。</li>
+<li><strong>结论</strong>：表 3 显示，相比于不使用 DP（即使用中位数切割），加入 DP 使线长又优化了 1.45 倍。图 8 显示，加入 DP 后，系统的 CPI 降低了 9.5% - 17.8%。这印证了前文推理：聪明的面积平衡切割法能有效保护关键路径，降低系统延迟。<figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.13157#page=9"><img src="figures/openalex-w7135074500/figure-8.png" alt="Figure 8: Cycle-per-instruction (CPI) comparison on the GSRC bench-                                   ATPlace benchmark suite [35], enabling comprehensive as-" loading="lazy"></a><figcaption>Figure 8 · <a href="https://arxiv.org/pdf/2609.13157#page=9">原文 PDF 第 9 页</a></figcaption></figure></li>
 </ul>
 <h4>3. 跨 Die 连通性与面积平衡 (Table V)</h4>
 <ul>
