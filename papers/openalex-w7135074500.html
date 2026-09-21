@@ -107,22 +107,22 @@
 <hr />
 <h3>IV. Experimental Results (实验结果)</h3>
 <p>本节用实验证明前文设计的有效性。所用基准测试集为 GSRC 和最近的 ICCAD 2024 ATPlace（注意：年份设定为 2026 年，故 2024 年的测试集是合理的近期标准）。</p>
-<h4>1. 与现有技术对比 (Table I)</h4>
+<h4>1. 与现有技术对比 (Table I)</h4><figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.13157#page=9"><img src="figures/openalex-w7135074500/table-I.png" alt="Table I: Experimental results on GSRC benchmarks [34], reporting W(·) and runtime (seconds). Best values are in bold" loading="lazy"></a><figcaption>Table I · <a href="https://arxiv.org/pdf/2609.13157#page=9">原文 PDF 第 9 页</a></figcaption></figure>
 <ul>
 <li><strong>实验设置</strong>：对比了四大类方法。一类是基于 FM 或 Spectral 划分的先划分后布局法（FM+AR 等），一类是 3D 原生序列对启发式搜索（GSP, TA3D），还有一个是作者自己早期的中位数切割法 [1]。</li>
 <li><strong>结论</strong>：在 GSRC 测试集上，GREAT3D 在线长（WL）上彻底碾压了所有基准。比“先划分”方法好约 1.84 - 2.96 倍，比原生 3D 方法好 2.40 - 2.74 倍，同时运行时间（Time）保持在数十秒级别，远快于动辄几百上千秒的原生 3D 启发式算法。这证明了 SDP 全局视角的优越性以及避免组合爆炸的优势。</li>
 </ul>
-<h4>2. 消融实验与 CPI 收益 (Table III &amp; Figure 8)</h4>
+<h4>2. 消融实验与 CPI 收益 (Table III &amp; Figure 8)</h4><figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.13157#page=10"><img src="figures/openalex-w7135074500/table-III.png" alt="Table III: DP die-assignment ablation on GSRC: “w/o DP” =" loading="lazy"></a><figcaption>Table III · <a href="https://arxiv.org/pdf/2609.13157#page=10">原文 PDF 第 10 页</a></figcaption></figure><figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.13157#page=9"><img src="figures/openalex-w7135074500/figure-8.png" alt="Figure 8: Cycle-per-instruction (CPI) comparison on the GSRC bench-                                   ATPlace benchmark suite [35], enabling comprehensive as-" loading="lazy"></a><figcaption>Figure 8 · <a href="https://arxiv.org/pdf/2609.13157#page=9">原文 PDF 第 9 页</a></figcaption></figure>
 <ul>
 <li><strong>设计目的</strong>：验证第二阶段“基于 DP 的 Die 分配”到底有没有用。</li>
-<li><strong>结论</strong>：表 3 显示，相比于不使用 DP（即使用中位数切割），加入 DP 使线长又优化了 1.45 倍。图 8 显示，加入 DP 后，系统的 CPI 降低了 9.5% - 17.8%。这印证了前文推理：聪明的面积平衡切割法能有效保护关键路径，降低系统延迟。<figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.13157#page=9"><img src="figures/openalex-w7135074500/figure-8.png" alt="Figure 8: Cycle-per-instruction (CPI) comparison on the GSRC bench-                                   ATPlace benchmark suite [35], enabling comprehensive as-" loading="lazy"></a><figcaption>Figure 8 · <a href="https://arxiv.org/pdf/2609.13157#page=9">原文 PDF 第 9 页</a></figcaption></figure></li>
+<li><strong>结论</strong>：表 3 显示，相比于不使用 DP（即使用中位数切割），加入 DP 使线长又优化了 1.45 倍。图 8 显示，加入 DP 后，系统的 CPI 降低了 9.5% - 17.8%。这印证了前文推理：聪明的面积平衡切割法能有效保护关键路径，降低系统延迟。</li>
 </ul>
-<h4>3. 跨 Die 连通性与面积平衡 (Table V)</h4>
+<h4>3. 跨 Die 连通性与面积平衡 (Table V)</h4><figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.13157#page=11"><img src="figures/openalex-w7135074500/table-V.png" alt="Table V: Block-level F2F connectivity proxy, averaged over all                                                 CPI Distribution Across 10 Seeds × 10 Cases                     Average HPWL with Standard Deviation" loading="lazy"></a><figcaption>Table V · <a href="https://arxiv.org/pdf/2609.13157#page=11">原文 PDF 第 11 页</a></figcaption></figure>
 <ul>
 <li><strong>指标解释</strong>：“Area bal.” 代表面积平衡度，1.0 完美平衡。</li>
 <li><strong>结论</strong>：GREAT3D 的面积平衡度高达 0.962（近乎完美）。虽然“先划分”方法（如 Spectral）的跨 Die 线长比例（Inter-die %）极低（12%），但那是靠强行把相关模块塞在同一层换来的，导致单层内拥挤不堪，总线长极差（154.1）。GREAT3D 在保持合理跨 Die 比例（49%）的同时，实现了最小的总线长（80.4），说明它找到了真正的全局最优解。</li>
 </ul>
-<h4>4. 后端全局布线验证 (Table VI)</h4>
+<h4>4. 后端全局布线验证 (Table VI)</h4><figure class="paper-figure"><a href="https://arxiv.org/pdf/2609.13157#page=11"><img src="figures/openalex-w7135074500/table-VI.png" alt="Table VI: Backend global-route results on the ariane133 de-" loading="lazy"></a><figcaption>Table VI · <a href="https://arxiv.org/pdf/2609.13157#page=11">原文 PDF 第 11 页</a></figcaption></figure>
 <ul>
 <li><strong>为什么做这个实验？</strong> 布局规划（Floorplanning）给出的只是模块的坐标，到底这个坐标好不好，最终要看布线工具（Router）能不能在不产生短路（Congestion Overflow，拥塞溢出）的情况下把线连起来。这是极其重要的实际工程验证。</li>
 <li><strong>结论</strong>：通过实际导入 OpenROAD 开源 EDA 工具流，GREAT3D 产生的布局溢出值（Overflow）仅为 399，比 FM 基准低 91.4%，比 TA3D 低 74.5%。这表明 GREAT3D 生成的布局在物理层面上是最具可布线性（Routable）的。</li>
