@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Optimizing Multi-GPU Parallelization Strategies for Deep Learning Training · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>Optimizing Multi-GPU Parallelization Strategies for Deep Learning Training</h1><p class="paper-note">Saptadeep Pal, Eiman Ebrahimi, Arslan Zulfiqar, Yaosheng Fu, Victor Zhang, Szymon Migacz, David Nellans, Puneet Gupta · arXiv (Cornell University) · 2019 · <a href="https://doi.org/10.1109/mm.2019.2935967">原文</a> · <a href="https://arxiv.org/pdf/1907.13257">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>本文详细解读2019年发表的研究论文《Optimizing Multi-GPU Parallelization Strategies for Deep Learning Training》。</p>
+<p>文章的<strong>核心主线</strong>是：在深度学习训练中，单独依靠“数据并行”向大规模集群扩展时，会遇到通信开销和“统计效率”下降的物理与算法瓶颈；为了突破这一限制，作者提出并量化分析了“混合并行（数据并行+模型并行）”策略。文章建立了一套严格的分析框架，用于寻找何时应该切换到混合并行的“交叉点”，并开发了一个基于整数线性规划（ILP）的底层软硬件协同布局工具（DLPlacer），以最大化模型并行的加速比，最终得出在特定网络下混合并行远优于纯数据并行的结论。</p>
+<p>以下按逻辑顺序逐章节详细展开。</p>
+<hr />
+<h3>1. 引言 (Introduction) 与 2. 背景 (Background)</h3>
+<p>为了理解本文的系统全貌，首先需要建立深度学习分布式训练的基础概念体系。</p>
+<p>【背景补充】深度学习（Deep Learning, DL）模型的训练过程通常包含前向传播（计算损失）、反向传播（计算梯度）和权重更新三个阶段。为了加速这一过程，需要将计算任务分配到多个计算设备（如GPU）上。</p>
+<ul>
+<li><strong>数据并行 (Data Parallelism, DP)</strong>：最常用的并行策略。在本文的定义中，每个计算设备（Worker）上都拥有一份完整且相同的模型权重副本，但各自处理数据集中不同且独立的子集。</li>
+<li><strong>微批次 (Mini-batch)</strong>：分配给单个设备在单次训练步骤（Step）中处理的数据样本量。</li>
+<li><strong>全局批次 (Global batch)</strong>：在数据并行中，所有设备在同一个训练步骤中处理的数据总量。全局批次大小 = 微批次大小 × 数据并行设备数。</li>
+<li><strong>同步随机梯度下降 (Sync-SGD)</strong>：本文关注的底层算法更新机制。所有设备计算完微批次的梯度后，必须通过 <strong>All-reduce（全归约）</strong> 这种集体通信协议将梯度在所有节点间共享并求平均，确保下一轮迭代前所有设备的模型参数绝对一致。</li>
+<li><strong>轮次 (Epoch)</strong>：所有训练数据被完整遍历一次的过程。</li>
+</ul>
+<p><strong>引发本文研究的问题背景</strong>：
+当开发者不断增加设备数量（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span>，原文未说明单位）以寻求数据并行的加速时，为了保证单块GPU的算力利用率，微批次大小通常保持不变，这就导致<strong>全局批次大小随着设备数线性增长</strong>。这带来了两个致命问题：</p>
+<ol>
+<li><strong>通信开销骤增</strong>：设备越多，All-reduce 梯度同步花费的时间越长。</li>
+<li><strong>统计效率 (Statistical Efficiency) 损失</strong>：随着全局批次过大，模型容易陷入局部最优或泛化能力变差，导致网络收敛到目标精度需要<strong>更多的轮次 (Epochs)</strong>。</li>
+</ol>
+<p>为了解决纯数据并行的瓶颈，作者引入了另一维度的策略：</p>
+<ul>
+<li><strong>模型并行 (Model Parallelism, MP)</strong>：将模型的<strong>数据流图 (DFG, Dataflow Graph，表示计算操作及其数据依赖关系的有向图)</strong> 拆分到多个设备上。这些设备共同处理同一个微批次的数据。</li>
+<li><strong>流水线并行 (Pipeline Parallelism)</strong>：模型并行的另一种实现形式，将网络按层分组，放置在不同设备上，通过将微批次进一步切分为微小批次（Micro-batches）在设备间流水线执行。本文将其视为模型并行的一种特例。</li>
+</ul>
+<p><strong>本文核心思路</strong>：将数据并行（DP）与模型并行（MP）结合，形成<strong>混合并行 (Hybrid Parallelization)</strong>。即每个数据并行 Worker 不再是单张GPU，而是由多张GPU组成的一个模型并行集群。文章试图找到一个精确的临界点：在多少张GPU时，采用混合并行的端到端训练时间会短于纯数据并行。</p>
+<hr />
+<h3>3. 分解端到端训练时间 (Decomposing End-to-End Training Time)</h3>
+<p>本节作者通过数学建模量化了不同并行策略的端到端训练时间。</p>
+<h4>基础时间公式</h4>
+<p>端到端收敛时间 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>C</mi></mrow></math></span> 的基础公式如下：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>C</mi><mo>=</mo><mi>T</mi><mo>×</mo><mi>S</mi><mo>×</mo><mi>E</mi></mrow></math>
+</div>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>C</mi></mrow></math></span>：模型收敛到目标精度的总训练时间（标量，原文未说明单位），是最终的优化目标。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi></mrow></math></span>：每个训练步骤（Step）的平均执行时间（标量，原文未说明单位）。主要取决于硬件算力和计算图的执行效率。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi></mrow></math></span>：每轮次包含的步骤数（标量，原文未说明单位）。计算方法为数据集总样本数除以<strong>全局批次大小</strong>。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>E</mi></mrow></math></span>：收敛所需的目标轮次数（标量，原文未说明单位）。这是一个依赖于算法和超参数的量。</li>
+</ul>
+<h4>量化数据并行 (DP) 时间</h4>
+<p>当使用 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 个设备进行纯数据并行时，相比单设备训练，其加速比 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msub><mi>U</mi><mi>N</mi></msub></mrow></math></span>（标量，无量纲，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 表示使用的计算设备总数）推导如下：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>S</mi><msub><mi>U</mi><mi>N</mi></msub><mo>=</mo><mfrac><mrow><msub><mi>T</mi><mn>1</mn></msub></mrow><mrow><msub><mi>T</mi><mi>N</mi></msub></mrow></mfrac><mo>×</mo><mfrac><mrow><msub><mi>S</mi><mn>1</mn></msub></mrow><mrow><msub><mi>S</mi><mi>N</mi></msub></mrow></mfrac><mo>×</mo><mfrac><mrow><msub><mi>E</mi><mn>1</mn></msub></mrow><mrow><msub><mi>E</mi><mi>N</mi></msub></mrow></mfrac></mrow></math>
+</div>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span>：使用的计算设备总数（标量，正整数）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mn>1</mn></msub><mo>,</mo><msub><mi>S</mi><mn>1</mn></msub><mo>,</mo><msub><mi>E</mi><mn>1</mn></msub></mrow></math></span>：分别为单台设备运行时的步时间、每轮步数和收敛轮次（原文均未说明单位，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn></mrow></math></span> 表示单台设备）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mi>N</mi></msub><mo>,</mo><msub><mi>S</mi><mi>N</mi></msub><mo>,</mo><msub><mi>E</mi><mi>N</mi></msub></mrow></math></span>：分别为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 台设备运行纯数据并行时的对应量（原文均未说明单位，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 表示 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 台设备）。</li>
+<li><strong><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msub><mi>E</mi><mi>N</mi></msub></mrow></math></span> (Scaling Efficiency, 扩展效率)</strong>：作者定义 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msub><mi>E</mi><mi>N</mi></msub><mo>=</mo><mfrac><mrow><msub><mi>T</mi><mn>1</mn></msub></mrow><mrow><msub><mi>T</mi><mi>N</mi></msub></mrow></mfrac></mrow></math></span>（下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 表示 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 台设备）。由于梯度同步的通信开销，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mi>N</mi></msub></mrow></math></span> 总是大于 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mn>1</mn></msub></mrow></math></span>，因此 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msub><mi>E</mi><mi>N</mi></msub></mrow></math></span> 始终小于等于 1。</li>
+<li>由于 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 路数据并行的全局批次大小是单机的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 倍，因此每轮步数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>S</mi><mi>N</mi></msub></mrow></math></span> 是 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>S</mi><mn>1</mn></msub></mrow></math></span> 的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>/</mo><mi>N</mi></mrow></math></span>，即 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mfrac><mrow><msub><mi>S</mi><mn>1</mn></msub></mrow><mrow><msub><mi>S</mi><mi>N</mi></msub></mrow></mfrac><mo>=</mo><mi>N</mi></mrow></math></span>。</li>
+</ul>
+<p>将上述代入，公式简化为：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>S</mi><msub><mi>U</mi><mi>N</mi></msub><mo>=</mo><mi>S</mi><msub><mi>E</mi><mi>N</mi></msub><mo>×</mo><mi>N</mi><mo>×</mo><mfrac><mrow><msub><mi>E</mi><mn>1</mn></msub></mrow><mrow><msub><mi>E</mi><mi>N</mi></msub></mrow></mfrac></mrow></math>
+</div>
+<p>这里明确揭示了纯数据并行的困境：当 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 很大时，通信开销导致 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msub><mi>E</mi><mi>N</mi></msub></mrow></math></span> 下降，同时大全局批次导致统计效率下降（收敛需要更多轮次，即 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>E</mi><mi>N</mi></msub><mo>&gt;</mo><msub><mi>E</mi><mn>1</mn></msub></mrow></math></span>，导致 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mfrac><mrow><msub><mi>E</mi><mn>1</mn></msub></mrow><mrow><msub><mi>E</mi><mi>N</mi></msub></mrow></mfrac></mrow></math></span> 下降），从而严重拖累整体加速比。</p>
+<h4>量化混合并行与策略选择</h4>
+<p>假设我们有 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></math></span> 个设备可用（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 为正整数，原文未说明单位）。作者比较了两种利用这些设备的策略：</p>
+<ol>
+<li>
+<p><strong>纯数据并行策略</strong>（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></math></span> 路 DP）：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>S</mi><msub><mi>U</mi><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></msub><mo>=</mo><mi>S</mi><msub><mi>E</mi><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></msub><mo>×</mo><mi>M</mi><mo>×</mo><mi>N</mi><mo>×</mo><mfrac><mrow><msub><mi>E</mi><mn>1</mn></msub></mrow><mrow><msub><mi>E</mi><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></msub></mrow></mfrac></mrow></math>
+</div>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msub><mi>U</mi><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></msub></mrow></math></span>：<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></math></span> 路纯数据并行的加速比（标量，原文未说明单位，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></math></span> 表示设备总数）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msub><mi>E</mi><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></msub><mo>,</mo><msub><mi>E</mi><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></msub></mrow></math></span>：分别为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></math></span> 台设备运行纯数据并行时的扩展效率和收敛轮次（原文均未说明单位，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></math></span> 表示设备总数）。
+<em>(注：这里沿用了公式3的推导逻辑，只是将设备数换成了 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></math></span>)</em>。</li>
+</ul>
+</li>
+<li>
+<p><strong>混合并行策略</strong>（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 路 DP，每个 Worker 使用 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi></mrow></math></span> 路 MP）：
+在这种配置下，全局批次大小与 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 路纯 DP 相同（因为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi></mrow></math></span> 个设备组成一个整体只处理一个微批次）。因此，收敛轮次仍为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>E</mi><mi>N</mi></msub></mrow></math></span>。</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>S</mi><msubsup><mi>U</mi><mi>N</mi><mi>M</mi></msubsup><mo>=</mo><mi>S</mi><msup><mi>U</mi><mi>M</mi></msup><mo>×</mo><mi>S</mi><msub><mi>E</mi><mi>N</mi></msub><mo>×</mo><mi>N</mi><mo>×</mo><mfrac><mrow><msub><mi>E</mi><mn>1</mn></msub></mrow><mrow><msub><mi>E</mi><mi>N</mi></msub></mrow></mfrac></mrow></math>
+</div>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msubsup><mi>U</mi><mi>N</mi><mi>M</mi></msubsup></mrow></math></span>：混合并行策略的总加速比（标量，无量纲，上标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi></mrow></math></span> 表示每个数据并行 Worker 使用的模型并行设备数，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 表示数据并行 Worker 的数量）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msup><mi>U</mi><mi>M</mi></msup></mrow></math></span>：采用 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi></mrow></math></span> 个设备进行<strong>模型并行</strong>带来的单步时间加速比（标量，无量纲，上标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi></mrow></math></span> 表示模型并行的设备数）。注意，作者指出原文中的符号 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi></mrow></math></span> 存在复用（后文 ILP 约束中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo stretchy="false">(</mo><mi>k</mi><mo stretchy="false">)</mo></mrow></math></span> 代表内存），此处 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi></mrow></math></span> 仅指代模型并行的设备数。</li>
+</ul>
+</li>
+</ol>
+<p><strong>寻找最佳策略的临界点</strong>：
+如果要求混合策略优于纯数据并行，即 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msubsup><mi>U</mi><mi>N</mi><mi>M</mi></msubsup><mo>&gt;</mo><mi>S</mi><msub><mi>U</mi><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></msub></mrow></math></span>，代入公式得到：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>S</mi><msup><mi>U</mi><mi>M</mi></msup><mo>&gt;</mo><mi>M</mi><mo>×</mo><mfrac><mrow><mi>S</mi><msub><mi>E</mi><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></msub></mrow><mrow><mi>S</mi><msub><mi>E</mi><mi>N</mi></msub></mrow></mfrac><mo>×</mo><mfrac><mrow><msub><mi>E</mi><mi>N</mi></msub></mrow><mrow><msub><mi>E</mi><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></msub></mrow></mfrac></mrow></math>
+</div>
+<p><strong>推理链说明</strong>：这个不等式是本文最重要的理论结论。它表明，只要<strong>模型并行的加速比 (<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msup><mi>U</mi><mi>M</mi></msup></mrow></math></span>)</strong> 能够抵消掉“因为纯粹扩展数据并行（扩至 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></math></span>）所带来的通信效率下降（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msub><mi>E</mi><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></msub><mo>/</mo><mi>S</mi><msub><mi>E</mi><mi>N</mi></msub></mrow></math></span>）和 统计效率损失（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>E</mi><mi>N</mi></msub><mo>/</mo><msub><mi>E</mi><mrow><mi>M</mi><mo>×</mo><mi>N</mi></mrow></msub></mrow></math></span>）”，那么混合并行就是更优的选择。</p>
+<hr />
+<h3>4. 方法论 (Methodology) 与 5. 评估 (Evaluation)</h3>
+<p>为了验证上述理论，作者进行了系统性测量。</p>
+<p><strong>实验对象与设定</strong>：</p>
+<ul>
+<li>模型：Inception-V3 (图像)、GNMT (翻译)、BigLSTM (语言建模)。</li>
+<li>硬件系统约束：NVIDIA DGX-1 服务器，包含 4 张 Tesla V100 GPU，通过高速互联总线 NVLink 连接。使用了 NCCL 2.0 库。</li>
+</ul>
+<p><strong>测量挑战与应对</strong>：</p>
+<ul>
+<li><strong>问题</strong>：物理系统只有 4 张 GPU，如何测量几百张 GPU 的收敛轮次（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>E</mi><mi>N</mi></msub></mrow></math></span>）？</li>
+<li><strong>方法</strong>：作者采用<strong>延迟梯度更新 (Delayed gradient update)</strong> 技术。例如，为了模拟 16 张 GPU 的全局批次，让 4 张物理 GPU 每张连续前向/反向传播 4 个微批次，在本地累加梯度，最后再进行一次 All-reduce 通信。这种软件层面的设定允许我们测量大规模集群的批次大小对统计效率的影响。</li>
+<li><strong>保守假设</strong>：对于无法在4卡物理机上测量的扩展效率（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msub><mi>E</mi><mi>N</mi></msub></mrow></math></span>），作者做出了 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msub><mi>E</mi><mi>N</mi></msub><mo>=</mo><mn>1</mn></mrow></math></span>（即假设通信开销为0）的最乐观估计。这是一个故意刁难混合并行的<strong>偏保守假设</strong>：如果在不考虑纯DP通信劣势的情况下混合并行依然胜出，那么在真实物理系统中混合并行的优势只会更大。</li>
+</ul>
+<p><strong>实验结果（结合图表）</strong>：</p>
+<ul>
+<li><strong>图 4 (Figure 4)</strong>：展示了通过延迟更新模拟出的结果。随着模拟 GPU 数量（全局批次）增加，三个模型收敛所需的轮次（Epochs）均出现了陡升。特别是 BigLSTM 在超过 16 张 GPU 后，轮次急剧增加。<figure class="paper-figure"><a href="https://arxiv.org/pdf/1907.13257#page=6"><img src="figures/openalex-w2969766737/figure-4.png" alt="Figure 4: Number of epochs required for the networks to converge" loading="lazy"></a><figcaption>Figure 4 · <a href="https://arxiv.org/pdf/1907.13257#page=6">原文 PDF 第 6 页</a></figcaption></figure></li>
+<li><strong>图 5 (Figure 5)</strong>：代入公式投射的最终加速比。
+<ul>
+<li><strong>Inception-V3 (图5a)</strong>：在 32 GPUs 之前，纯 DP 加速良好；超过 32 GPUs 后，纯 DP 由于收敛轮次激增导致加速饱和。此时，采用 2 路模型并行（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo>=</mo><mn>2</mn></mrow></math></span>）与 32 路数据并行的混合策略开始反超。到 256 GPUs 时，混合策略比纯 DP 快 26.5%。<figure class="paper-figure"><a href="https://arxiv.org/pdf/1907.13257#page=7"><img src="figures/openalex-w2969766737/figure-5.png" alt="Figure 5: Projected speedup of hybrid MP-DP parallelization vs DP-only parallelization" loading="lazy"></a><figcaption>Figure 5 · <a href="https://arxiv.org/pdf/1907.13257#page=7">原文 PDF 第 7 页</a></figcaption></figure></li>
+<li><strong>结论</strong>：实验清晰地证实了，当统计效率损失导致 DP 瘫痪时，结合哪怕加速比不高（如 Table 1 测量的 1.15x - 1.32x）的模型并行，也能在宏观系统尺度上带来显著的端到端收益。<figure class="paper-figure"><a href="https://arxiv.org/pdf/1907.13257#page=7"><img src="figures/openalex-w2969766737/table-1.png" alt="Table 1: MP splitting strategy and the speedup obtained when split" loading="lazy"></a><figcaption>Table 1 · <a href="https://arxiv.org/pdf/1907.13257#page=7">原文 PDF 第 7 页</a></figcaption></figure></li>
+</ul>
+</li>
+</ul>
+<hr />
+<h3>6. 最大化模型并行性能 (Maximizing MP Performance)</h3>
+<p>上述分析表明，混合并行的成功极其依赖于模型并行的单步加速比 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msup><mi>U</mi><mi>M</mi></msup></mrow></math></span> 必须足够大。为了解决“如何将深度学习操作最优地放置在不同 GPU 上以最大化 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msup><mi>U</mi><mi>M</mi></msup></mrow></math></span>”的问题，作者开发了 <strong>DLPlacer</strong> 工具，这反映了深度的<strong>架构与 EDA (电子设计自动化) 协同</strong>思想。</p>
+<p>作者将软件层的计算图映射问题，转化为类似 EDA 布图布线中的 <strong>整数线性规划 (ILP)</strong> 问题。这里的代价模型直接提取了微架构特征（如显存、FLOPs）和互联协议（带宽、延迟）。</p>
+<h4>输入参数 (如 Table 2 所示)</h4><figure class="paper-figure"><a href="https://arxiv.org/pdf/1907.13257#page=8"><img src="figures/openalex-w2969766737/table-2.png" alt="Table 2: Summary of notations used in the ILP                             such that their dependencies are met. We calculate the time" loading="lazy"></a><figcaption>Table 2 · <a href="https://arxiv.org/pdf/1907.13257#page=8">原文 PDF 第 8 页</a></figcaption></figure>
+<ul>
+<li><strong>计算图 (Compute DFG) 输入</strong>：
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span>：所有计算操作/内核节点的集合（原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>E</mi></mrow></math></span>：节点间数据依赖的边集合（原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Δ</mi><mo stretchy="false">(</mo><mi>k</mi><mo stretchy="false">)</mo></mrow></math></span>：节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math></span> 的预期执行时间（标量，原文未说明单位）。【基于GPU标称TFLOPS和操作所需FLOPs分析计算得出】。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo stretchy="false">(</mo><mi>k</mi><mo stretchy="false">)</mo></mrow></math></span>：节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math></span> 在特定批次下的显存占用（标量，原文未说明单位）。<em>(注意：这里的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi></mrow></math></span> 代表 Memory，与前面公式中的设备数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi></mrow></math></span> 不同)</em>。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>D</mi><mo stretchy="false">(</mo><mi>e</mi><mo stretchy="false">)</mo></mrow></math></span>：边 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>e</mi></mrow></math></span> 传输的数据量（标量，字节）。</li>
+</ul>
+</li>
+<li><strong>硬件图 (Hardware Graph) 输入</strong>：
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span>：计算硬件节点（如GPU）集合（原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi></mrow></math></span>：路由器/交换机节点集合（原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>L</mi></mrow></math></span>：连接路由器和硬件节点的物理链路集合（原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>B</mi><mo stretchy="false">(</mo><mi>l</mi><mo stretchy="false">)</mo></mrow></math></span>：物理链路 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>l</mi></mrow></math></span> 的带宽（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mi>e</mi><mi>m</mi><mo stretchy="false">(</mo><mi>N</mi><mo stretchy="false">)</mo></mrow></math></span>：设备显存容量（标量，原文未说明单位）。</li>
+</ul>
+</li>
+</ul>
+<h4>输出与中间变量</h4>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>P</mi><mrow><mi>k</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><mi>K</mi><mo>,</mo><mi>N</mi><mo stretchy="false">)</mo></mrow></math></span>：输出，二进制映射变量（原文未说明单位，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi><mi>n</mi></mrow></math></span> 表示计算节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math></span> 到硬件节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math></span> 的映射）。如果在节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math></span> 上放置节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math></span>，则 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>P</mi><mrow><mi>k</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><mi>k</mi><mo>,</mo><mi>n</mi><mo stretchy="false">)</mo><mo>=</mo><mn>1</mn></mrow></math></span>。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mi>k</mi></msub><mo stretchy="false">(</mo><mi>K</mi><mo stretchy="false">)</mo></mrow></math></span>：输出，节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math></span> 在硬件上启动的时间（标量，原文未说明单位，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math></span> 表示计算节点）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>C</mi><mrow><mi>e</mi><mi>l</mi></mrow></msub><mo stretchy="false">(</mo><mi>E</mi><mo>,</mo><mi>L</mi><mo stretchy="false">)</mo></mrow></math></span>：输出，二进制变量，表示依赖边映射到物理链路（原文未说明单位，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>e</mi><mi>l</mi></mrow></math></span> 表示边 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>e</mi></mrow></math></span> 到链路 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>l</mi></mrow></math></span> 的映射）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>Δ</mi><mi>e</mi></msub><mo stretchy="false">(</mo><mi>L</mi><mo stretchy="false">)</mo></mrow></math></span>：中间变量，边 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>e</mi></mrow></math></span> 通信所需的延迟（标量，原文未说明单位，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>e</mi></mrow></math></span> 表示依赖边）。</li>
+</ul>
+<h4>核心 ILP 约束公式（系统必须满足的条件）</h4>
+<p><strong>计算节点放置约束</strong>：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mo>∀</mo><mi>k</mi><munder><mo>∑</mo><mi>n</mi></munder><msub><mi>P</mi><mrow><mi>k</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><mi>k</mi><mo>,</mo><mi>n</mi><mo stretchy="false">)</mo><mo>=</mo><mn>1</mn><mspace /><mo stretchy="false">(</mo><mn>7</mn><mo stretchy="false">)</mo></mrow></math>
+</div>
+<ul>
+<li><strong>含义</strong>：每个计算操作 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math></span> 必须且只能映射到一个硬件节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math></span> 上。</li>
+</ul>
+<p><strong>激活数据路由约束（流守恒）</strong>：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mo>∀</mo><mi>e</mi><mo>,</mo><mi>n</mi><mo>,</mo><msub><mi>k</mi><mi>i</mi></msub><mo>,</mo><msub><mi>k</mi><mi>j</mi></msub><mo>∣</mo><msub><mi>e</mi><mrow><msub><mi>k</mi><mi>i</mi></msub><mo>,</mo><msub><mi>k</mi><mi>j</mi></msub></mrow></msub><mo>=</mo><mn>1</mn><mtext> if </mtext><msub><mi>P</mi><mrow><mi>k</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><msub><mi>k</mi><mi>i</mi></msub><mo>,</mo><mi>n</mi><mo stretchy="false">)</mo><mo>!</mo><mo>=</mo><msub><mi>P</mi><mrow><mi>k</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><msub><mi>k</mi><mi>j</mi></msub><mo>,</mo><mi>n</mi><mo stretchy="false">)</mo></mrow></math>
+</div>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><munder><mo>∑</mo><mrow><mi>l</mi><mo stretchy="false">|</mo><msub><mi>l</mi><mrow><mi>n</mi><mo>,</mo><mi>n</mi><mi>x</mi></mrow></msub><mo>=</mo><mn>1</mn></mrow></munder><msub><mi>C</mi><mrow><mi>e</mi><mi>l</mi></mrow></msub><mo stretchy="false">(</mo><mi>e</mi><mo>,</mo><mi>l</mi><mo stretchy="false">)</mo><mo>=</mo><mn>1</mn><mspace /><mo>∀</mo><mi>n</mi><mi>x</mi><mo>∈</mo><mi>N</mi><mspace /><mo stretchy="false">(</mo><mn>8</mn><mo stretchy="false">)</mo></mrow></math>
+</div>
+<p>其中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>k</mi><mi>i</mi></msub><mo>,</mo><msub><mi>k</mi><mi>j</mi></msub><mo>∈</mo><mi>K</mi></mrow></math></span> 分别表示边 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>e</mi></mrow></math></span> 的源计算节点和目标计算节点，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mi>x</mi><mo>∈</mo><mi>N</mi></mrow></math></span> 表示硬件节点。<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>e</mi><mrow><msub><mi>k</mi><mi>i</mi></msub><mo>,</mo><msub><mi>k</mi><mi>j</mi></msub></mrow></msub></mrow></math></span> 表示节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>k</mi><mi>i</mi></msub></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>k</mi><mi>j</mi></msub></mrow></math></span> 之间的依赖边，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>k</mi><mi>i</mi></msub><mo>,</mo><msub><mi>k</mi><mi>j</mi></msub></mrow></math></span> 表示边的源节点和目标节点。<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>l</mi><mrow><mi>n</mi><mo>,</mo><mi>n</mi><mi>x</mi></mrow></msub></mrow></math></span> 表示连接节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math></span> 和节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mi>x</mi></mrow></math></span> 的物理链路，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mo>,</mo><mi>n</mi><mi>x</mi></mrow></math></span> 表示链路连接的两个节点。
+<em>(注：原文公式8中使用了非常规的书写 <code>!=</code> 表示不等于，且求和底部的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>l</mi><mo stretchy="false">|</mo><msub><mi>l</mi><mrow><mi>n</mi><mo>,</mo><mi>n</mi><mi>x</mi></mrow></msub><mo>=</mo><mn>1</mn></mrow></math></span> 表示“满足连接节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math></span> 和节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mi>x</mi></mrow></math></span> 物理链路条件的所有链路 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>l</mi></mrow></math></span>”。)</em></p>
+<ul>
+<li><strong>含义</strong>：如果一条边 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>e</mi></mrow></math></span> 的源计算节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>k</mi><mi>i</mi></msub></mrow></math></span> 和目标节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>k</mi><mi>j</mi></msub></mrow></math></span> 被放置在了不同的 GPU 上，那么必须在源节点和目标节点所在的硬件网络之间，准确分配一条出链路和一条入链路。</li>
+</ul>
+<p>对于所有非源、非目的节点（包括交换机），确保路径连续：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mo>∀</mo><mi>e</mi><mo>,</mo><msub><mi>k</mi><mi>i</mi></msub><mo>,</mo><msub><mi>k</mi><mi>j</mi></msub><mo>∣</mo><msub><mi>e</mi><mrow><msub><mi>k</mi><mi>i</mi></msub><mo>,</mo><msub><mi>k</mi><mi>j</mi></msub></mrow></msub><mo>=</mo><mn>1</mn><mo>,</mo><mi>n</mi><mo>∣</mo><msub><mi>P</mi><mrow><mi>k</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><msub><mi>k</mi><mi>i</mi></msub><mo>,</mo><mi>n</mi><mo stretchy="false">)</mo><mo>=</mo><msub><mi>P</mi><mrow><mi>k</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><msub><mi>k</mi><mi>j</mi></msub><mo>,</mo><mi>n</mi><mo stretchy="false">)</mo><mo>=</mo><mn>0</mn></mrow></math>
+</div>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><munder><mo>∑</mo><mrow><mi>l</mi><mo stretchy="false">|</mo><msub><mi>l</mi><mrow><mi>n</mi><mo>,</mo><mi>n</mi><mi>x</mi></mrow></msub><mo>=</mo><mn>1</mn></mrow></munder><msub><mi>C</mi><mrow><mi>e</mi><mi>l</mi></mrow></msub><mo stretchy="false">(</mo><mi>e</mi><mo>,</mo><mi>l</mi><mo stretchy="false">)</mo><mo>=</mo><munder><mo>∑</mo><mrow><mi>l</mi><mo stretchy="false">|</mo><msub><mi>l</mi><mrow><mi>n</mi><mo>,</mo><mi>n</mi><mi>y</mi></mrow></msub><mo>=</mo><mn>1</mn></mrow></munder><msub><mi>C</mi><mrow><mi>e</mi><mi>l</mi></mrow></msub><mo stretchy="false">(</mo><mi>e</mi><mo>,</mo><mi>l</mi><mo stretchy="false">)</mo><mo>∀</mo><mi>n</mi><mi>x</mi><mo>,</mo><mi>n</mi><mi>y</mi><mo>∈</mo><mi>N</mi><mo>∪</mo><mi>R</mi><mspace /><mo stretchy="false">(</mo><mn>9</mn><mo stretchy="false">)</mo></mrow></math>
+</div>
+<p>其中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mi>y</mi><mo>∈</mo><mi>N</mi><mo>∪</mo><mi>R</mi></mrow></math></span> 表示硬件节点或路由器节点。</p>
+<ul>
+<li><strong>含义</strong>：这是网络流中经典的流量守恒定律——对于途径的路由器节点，被分配用于该数据边的输入链路数必须等于输出链路数。</li>
+</ul>
+<p><strong>顶点调度约束（依赖与时序）</strong>：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mo>∀</mo><msub><mi>k</mi><mrow><mi>s</mi><mi>r</mi><mi>c</mi></mrow></msub><mo>,</mo><msub><mi>k</mi><mrow><mi>d</mi><mi>e</mi><mi>s</mi><mi>t</mi></mrow></msub><mo>,</mo><mi>e</mi><mo>∣</mo><msub><mi>e</mi><mrow><msub><mi>k</mi><mrow><mi>s</mi><mi>r</mi><mi>c</mi></mrow></msub><mo>,</mo><msub><mi>k</mi><mrow><mi>d</mi><mi>e</mi><mi>s</mi><mi>t</mi></mrow></msub></mrow></msub><mo>=</mo><mn>1</mn><mo>,</mo></mrow></math>
+</div>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>T</mi><mo stretchy="false">(</mo><msub><mi>k</mi><mrow><mi>d</mi><mi>e</mi><mi>s</mi><mi>t</mi></mrow></msub><mo stretchy="false">)</mo><mo>≥</mo><mi>T</mi><mo stretchy="false">(</mo><msub><mi>k</mi><mrow><mi>s</mi><mi>r</mi><mi>c</mi></mrow></msub><mo stretchy="false">)</mo><mo>+</mo><mi>Δ</mi><mo stretchy="false">(</mo><msub><mi>k</mi><mrow><mi>s</mi><mi>r</mi><mi>c</mi></mrow></msub><mo stretchy="false">)</mo><mo>+</mo><msub><mi>Δ</mi><mi>e</mi></msub><mo stretchy="false">(</mo><mi>L</mi><mo stretchy="false">)</mo><mspace /><mo stretchy="false">(</mo><mn>10</mn><mo stretchy="false">)</mo></mrow></math>
+</div>
+<p>其中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>k</mi><mrow><mi>s</mi><mi>r</mi><mi>c</mi></mrow></msub><mo>,</mo><msub><mi>k</mi><mrow><mi>d</mi><mi>e</mi><mi>s</mi><mi>t</mi></mrow></msub><mo>∈</mo><mi>K</mi></mrow></math></span> 分别表示具有依赖关系的源操作和目标操作。</p>
+<ul>
+<li><strong>含义</strong>：目标操作 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>k</mi><mrow><mi>d</mi><mi>e</mi><mi>s</mi><mi>t</mi></mrow></msub></mrow></math></span> 的开始时间，必须晚于等于源操作 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>k</mi><mrow><mi>s</mi><mi>r</mi><mi>c</mi></mrow></msub></mrow></math></span> 的开始时间 + 源操作的执行时间 + 数据通过链路传输的时间 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>Δ</mi><mi>e</mi></msub><mo stretchy="false">(</mo><mi>L</mi><mo stretchy="false">)</mo></mrow></math></span>。这是物理因果律的体现。</li>
+</ul>
+<p><strong>通信延迟计算</strong>：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mo>∀</mo><mi>e</mi><mo>∈</mo><mi>E</mi><mo>,</mo><msub><mi>Δ</mi><mi>e</mi></msub><mo stretchy="false">(</mo><mi>L</mi><mo stretchy="false">)</mo><mo>=</mo><munder><mo>∑</mo><mrow><mi>l</mi><mo>∈</mo><mi>L</mi></mrow></munder><msub><mi>C</mi><mrow><mi>e</mi><mi>l</mi></mrow></msub><mo stretchy="false">(</mo><mi>e</mi><mo>,</mo><mi>l</mi><mo stretchy="false">)</mo><mo>*</mo><mo stretchy="false">(</mo><mi>D</mi><mo stretchy="false">(</mo><mi>e</mi><mo stretchy="false">)</mo><mo>/</mo><mi>B</mi><mo stretchy="false">(</mo><mi>l</mi><mo stretchy="false">)</mo><mo>+</mo><mi>L</mi><mo stretchy="false">(</mo><mi>l</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo><mspace /><mo stretchy="false">(</mo><mn>11</mn><mo stretchy="false">)</mo></mrow></math>
+</div>
+<ul>
+<li><strong>含义</strong>：传输延迟 = 数据量 / 链路带宽 + 链路基础延迟。<em>(注：原文未定义/未说明 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>L</mi><mo stretchy="false">(</mo><mi>l</mi><mo stretchy="false">)</mo></mrow></math></span> 的具体含义)</em>。</li>
+</ul>
+<p><strong>硬件资源争用约束（重叠约束）</strong>：
+公式 (12) 包含一个逻辑判断，确保如果两个没有依赖关系的计算节点 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>k</mi><mi>x</mi></msub><mo>,</mo><msub><mi>k</mi><mi>y</mi></msub></mrow></math></span> （其中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>k</mi><mi>x</mi></msub><mo>,</mo><msub><mi>k</mi><mi>y</mi></msub><mo>∈</mo><mi>K</mi></mrow></math></span>）落在同一个物理 GPU 上时（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>P</mi><mrow><mi>k</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><msub><mi>k</mi><mi>x</mi></msub><mo>,</mo><mi>n</mi><mo stretchy="false">)</mo><mo>=</mo><msub><mi>P</mi><mrow><mi>k</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><msub><mi>k</mi><mi>y</mi></msub><mo>,</mo><mi>n</mi><mo stretchy="false">)</mo><mo>=</mo><mn>1</mn></mrow></math></span>），必须串行执行，即一个操作的开始时间必须晚于另一个操作结束。作者在此处做出了一个<strong>编译器/库级别的重要假设</strong>：同一设备上的相邻操作是背靠背执行的，且通信与计算可以重叠。</p>
+<p><strong>设备内存容量约束</strong>：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mo>∀</mo><mi>n</mi><mo>∈</mo><mi>N</mi><mo>,</mo><mspace /><mi>M</mi><mi>e</mi><mi>m</mi><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo><mo>≥</mo><munder><mo>∑</mo><mrow><mi>k</mi><mo>∈</mo><mi>K</mi></mrow></munder><msub><mi>P</mi><mrow><mi>k</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><mi>k</mi><mo>,</mo><mi>n</mi><mo stretchy="false">)</mo><mo>*</mo><mi>M</mi><mo stretchy="false">(</mo><mi>k</mi><mo stretchy="false">)</mo><mspace /><mo stretchy="false">(</mo><mn>13</mn><mo stretchy="false">)</mo></mrow></math>
+</div>
+<ul>
+<li><strong>含义</strong>：物理底线的限制。放置在单张 GPU <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math></span> 上的所有操作所需的峰值显存总和，不能超过该卡的物理显存容量 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mi>e</mi><mi>m</mi><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo></mrow></math></span>。</li>
+</ul>
+<p><strong>跨层接口与结果 (DLPlacer 效果)</strong>：
+通过将硬件事实（NVLink 带宽、内存）输入 ILP 求解器，DLPlacer 输出了针对深度学习框架（TensorFlow <code>tf.device()</code>）的软件级布局方案。
+在 <strong>图 8 (Figure 8)</strong> 中，作者展示了利用该工具在 Inception-V3 上找到的最优 2-GPU 布局，理论测算获得了 1.32 倍模型并行加速，而实际芯片运行测得的加速比与理论预测误差在 6% 以内。值得注意的是，2-GPU 的最优加速比几乎等同于 3 乃至 4 GPU 的上限，这暴露出该网络本身的内在并行度约束，这也进一步证明了引入这类自动布局工具代替人类手动猜测的必要性。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/1907.13257#page=10"><img src="figures/openalex-w2969766737/figure-8.png" alt="Figure 8: Normalized per-step speedup from model parallelism as" loading="lazy"></a><figcaption>Figure 8 · <a href="https://arxiv.org/pdf/1907.13257#page=10">原文 PDF 第 10 页</a></figcaption></figure>
+<hr />
+<h3>7. 相关工作 (Related Work) 与 8. 结论 (Conclusion)</h3>
+<p>文章最后强调了现有框架在提取层内并行性（自动划分算子）方面的支持不足，这是推行此方法的现实局限性之一。</p>
+<p><strong>全文总结</strong>：
+本文最初面对的问题是深度学习模型向大规模集群扩展时，纯数据并行遭遇的“收敛轮次增加”和“通信墙”双重瓶颈。作者通过理论推导证明，当全局批次大到破坏统计效率时，将可用机器用于进一步数据并行是不划算的；此时，必须转向“混合并行”策略，利用模型并行（MP）去分担设备的增长。为了确保模型并行这一环能够提供足够的加速底座以抵消通信效率的损耗，作者进一步构建了底层布局工具 DLPlacer，通过跨层的硬件建模约束，实现了近乎最优的图切分。
+<strong>局限与警告</strong>：该模型极度依赖于计算图的可分割性（内在并行度）。对于像 Inception 这样拥有多分支的网络，ILP 切分效果良好；但对于完全串行且算子密集的架构，如果不借助库级别深度的流水线优化，很难获取足够的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi><msup><mi>U</mi><mi>M</mi></msup></mrow></math></span> 来触发混合并行的收益交叉点。因此，不应将“混合并行必然优于纯数据并行”作为不附带条件的绝对真理推广，它严格受限于文中所述的跨层数学不等式成立与否。</p>
+</div></td></tr></table></body></html>
