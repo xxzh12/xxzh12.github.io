@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Heterogeneous Dataflow Accelerators for Multi-DNN Workloads · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>Heterogeneous Dataflow Accelerators for Multi-DNN Workloads</h1><p class="paper-note">Hyoukjun Kwon, Liangzhen Lai, Michael Pellauer, Tushar Krishna, Yu‐Hsin Chen, Vikas Chandra · 2021 IEEE International Symposium on High-Performance Computer Architecture (HPCA) · 2021 · <a href="https://doi.org/10.1109/hpca51647.2021.00016">原文</a> · <a href="https://arxiv.org/pdf/1909.07437">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>本文介绍了一篇题为《Heterogeneous Dataflow Accelerators for Multi-DNN Workloads》（面向多深度神经网络工作负载的异构数据流加速器）的研究论文。该文针对增强现实/虚拟现实（AR/VR）等新兴应用中复杂的多模型并发场景，提出了一种新型的芯片架构及配套的软硬件协同设计框架。以下是按章节顺序的详细解析。</p>
+<h3>引言（Introduction）</h3>
+<p>本文的研究背景建立在新兴的 AI 驱动应用上，尤其是增强现实和虚拟现实（AR/VR）以及自动驾驶。这类应用为了实现复杂的功能（如目标检测、眼动追踪、手势识别等），在系统内部通常会同时运行多个深度神经网络（DNN，Deep Neural Network）。<em>背景补充：DNN 是一种通过多层结构提取数据特征的机器学习模型，其中卷积神经网络（CNN）是处理图像视觉任务最常用的一类 DNN。</em></p>
+<p>作者指出，这类包含多个 DNN 的工作负载（Multi-DNN Workloads）在层的“形状（Shape）”和“操作（Operation）”上表现出极高的异构性。形状异构性体现在不同层的通道数与激活图分辨率的比例差异巨大；操作异构性则体现在除了标准的二维卷积（CONV2D）外，还大量使用了深度可分离卷积、上采样卷积等。</p>
+<p>这种异构性给现有的加速器设计带来了巨大挑战。目前主流的解决方案主要有两类：第一类是固定数据流加速器（FDA，Fixed Dataflow Accelerator），即在单个芯片上采用一种固定的数据流策略，这会导致加速器在处理偏好其他数据流的层时效率低下；第二类是可重构数据流加速器（RDA，Reconfigurable Dataflow Accelerator），它通过灵活的硬件连线来适应不同层，但这引入了昂贵的开关、互连和控制器硬件成本，并在层间切换时消耗大量重构能量。</p>
+<p>为了解决这一矛盾，作者提出了一种全新的加速器类别：<strong>异构数据流加速器（HDA，Heterogeneous Dataflow Accelerator）</strong>。HDA 在同一个芯片上部署多个采用不同固定数据流的“子加速器（Sub-accelerators）”。它的核心思想是通过较粗粒度的数据流灵活性（将不同的层调度到最适合它的子加速器上）来替代 RDA 昂贵的细粒度硬件重构，从而在保持类似 FDA 的低面积和低功耗成本的同时，获得极高的执行效率。为了充分发挥 HDA 的潜力，作者还提出了一个名为 <strong>Herald</strong> 的协同设计框架，用于在设计时划分硬件资源，并在编译时优化层级执行调度。</p>
+<h3>背景与动机（Background and Motivation）</h3>
+<p>为了深入解释为什么现有的 FDA 无法高效处理多 DNN 工作负载，作者首先详细剖析了工作负载的异构性，并定义了加速器设计中的核心概念。</p>
+<p>工作负载的异构性主要由两方面引起：首先是层形状（Layer Shape）。例如，像 ResNet50 这样的分类网络，其目标是提取高度浓缩的分类向量，因此早期层具有高分辨率的激活图和较浅的通道，而后期层则具有低分辨率的激活图和极深的通道；相反，像 UNet 这样的分割网络需要还原图像分辨率，因此在后期会逐渐减少通道数并放大激活图。其次是层操作（Layer Operation），多 DNN 工作负载中混合了标准卷积、深度卷积（不跨通道累加）、逐点卷积等多种算子。</p>
+<p>为了理解硬件如何处理这些层，作者定义了<strong>数据流（Dataflow）<strong>和</strong>映射（Mapping）</strong>。在本文中，“数据流”统指循环的执行顺序（Loop ordering）和空间展开（Spatial unrolling，即并行化策略），它决定了计算如何利用数据的重用性。*背景补充：在硬件实现中，卷积计算通常被表示为多层嵌套的 for 循环（Loop nest）。通过改变这些循环的先后顺序或将某些循环拆分到多个计算单元上同时执行，就形成了不同的数据流。*而“映射”则是数据流的一个具体实例，它包含了将 DNN 操作放在加速器上运行所需的完整信息，特别是具体的循环边界（即分块大小，Tile size）。</p>
+<p>当为某个数据流构造映射时，有效的循环边界会受到具体层形状和操作的严格物理约束。不同的 FDA 因为采用不同的数据流，对不同的层有明显的偏好。作者对比了两种典型的 FDA 风格：</p>
+<ul>
+<li><strong>NVDLA 风格</strong>：采用权重驻留（Weight-stationary）数据流，主要在输入和输出通道维度上展开并行计算。*背景补充：权重驻留是指将神经网络的权重参数保存在计算单元内部的本地寄存器中，以减少从主存读取权重的能耗。*图 5 显示，这种设计在处理通道数极深的网络后期层时，处理单元（PE，Processing Element，即执行乘加运算的基本硬件单元）利用率高达 100%；但在处理通道数少、特征图大的早期层或深度卷积层时，由于缺乏足够的通道供其并行，PE 利用率分别暴跌至 37.5% 和 12.5%。<figure class="paper-figure"><a href="https://arxiv.org/pdf/1909.07437#page=4"><img src="figures/openalex-w3113087954/figure-5.png" alt="Figure 5: The impact of dataflow styles on efficiency. We show three example layer execution scenarios on NVDLA and Shi-diannao style" loading="lazy"></a><figcaption>Figure 5 · <a href="https://arxiv.org/pdf/1909.07437#page=4">原文 PDF 第 4 页</a></figcaption></figure></li>
+<li><strong>Shi-diannao 风格</strong>：采用输出驻留（Output-stationary）数据流，主要在输出激活图的行和列维度上展开并行计算。这种设计在处理通道少但分辨率高的层时 PE 利用率极高，但在处理通道极深且分辨率小的层时则效率低下。</li>
+</ul>
+<p>作者定义了 **EDP（Energy-Delay Product，能耗延迟乘积）**作为衡量综合效率的指标。由于没有任何单一的固定数据流能够同时高效处理所有类型的层，这种“平均优化”的妥协往往导致全局效率低下，这正是推动作者设计 HDA 的根本动机。</p>
+<h3>异构数据流加速器（Heterogeneous Dataflow Accelerators）</h3>
+<p>在这一节，作者正式定义了 HDA 的架构及其带来的优势与设计挑战。HDA 通过在单芯片内集成多个运行不同数据流的 FDA 实例（子加速器）来实现灵活性。</p>
+<p><strong>HDA 的架构定义</strong>
+作者给出了 HDA 的形式化数学定义（Definition 1）。在给出 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>N</mi><mi>d</mi></msub></mrow></math></span>（作者设定的整数，无量纲，表示可选数据流样式的数量）、<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>N</mi><mrow><mi>P</mi><mi>E</mi></mrow></msub></mrow></math></span>（系统物理约束的整数，无量纲，表示芯片上总的 PE 数量）和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>B</mi><msub><mi>W</mi><mi>G</mi></msub></mrow></math></span>（系统物理约束的标量，表示全局片上网络 NoC 的总带宽，原文未说明单位）的前提下，HDA 架构 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>H</mi></mrow></math></span> 定义为：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>H</mi><mo>=</mo><mo stretchy="false">{</mo><mo stretchy="false">(</mo><msub><mi>δ</mi><mi>i</mi></msub><mo>,</mo><msub><mi>N</mi><mi>i</mi></msub><mo>,</mo><mi>B</mi><msub><mi>W</mi><mi>i</mi></msub><mo stretchy="false">)</mo><mo>∣</mo><mn>1</mn><mo>≤</mo><mi>i</mi><mo>≤</mo><mi>n</mi><mo>∧</mo><mo>∑</mo><msub><mi>N</mi><mi>i</mi></msub><mo>=</mo><msub><mi>N</mi><mi>d</mi></msub><mo>∧</mo><mo>∑</mo><mi>B</mi><msub><mi>W</mi><mi>i</mi></msub><mo>=</mo><mi>B</mi><msub><mi>W</mi><mi>G</mi></msub><mo stretchy="false">}</mo></mrow></math>
+</div>
+<p>其中：</p>
+<ul>
+<li>集合 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>D</mi><mo>=</mo><mo stretchy="false">{</mo><msub><mi>δ</mi><mn>1</mn></msub><mo>,</mo><msub><mi>δ</mi><mn>2</mn></msub><mo>,</mo><mo>.</mo><mo>.</mo><mo>.</mo><mo>,</mo><msub><mi>δ</mi><mrow><msub><mi>N</mi><mi>d</mi></msub></mrow></msub><mo stretchy="false">}</mo></mrow></math></span> 代表可用的数据流样式集合。</li>
+<li>下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span>（取值范围 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>≤</mo><mi>i</mi><mo>≤</mo><mi>n</mi></mrow></math></span>）表示第 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 个子加速器的索引。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>δ</mi><mi>i</mi></msub></mrow></math></span> 是指第 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 个子加速器具体的硬件数据流。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math></span> 是 HDA 中包含的子加速器总数（无量纲）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>N</mi><mi>i</mi></msub></mrow></math></span> 是分配给第 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 个子加速器的 PE 数量（整数，无量纲）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>B</mi><msub><mi>W</mi><mi>i</mi></msub></mrow></math></span> 是分配给第 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 个子加速器的带宽标量（原文未说明单位）。</li>
+<li>求和约束（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>∑</mo><msub><mi>N</mi><mi>i</mi></msub><mo>=</mo><msub><mi>N</mi><mi>d</mi></msub></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>∑</mo><mi>B</mi><msub><mi>W</mi><mi>i</mi></msub><mo>=</mo><mi>B</mi><msub><mi>W</mi><mi>G</mi></msub></mrow></math></span>）确保了所有子加速器分配到的硬件资源之和严格等于整个芯片的总资源预算。</li>
+</ul>
+<p><strong>优势与挑战</strong>
+作者指出，正确优化的 HDA 具有三大优势：一是选择性调度，每层都能在其最偏好的子加速器上运行；二是层级并行，不同模型的层可以在不同的子加速器上同时运行，从而隐藏延迟；三是灵活性成本低，因为子加速器内部是固定的，不需要 RDA 复杂的动态连线。</p>
+<p>然而，设计 HDA 也面临巨大挑战。首先，在总面积不变的情况下，每个子加速器分到的 PE 数量必然少于整个单体芯片，这会导致单层的绝对并行度下降，进而可能因为空间数据重用（多播）减少而增加能耗。其次，内存和片上网络（NoC）带宽是共享的，必须在子加速器之间合理划分。最后，为了减少“暗硅（Dark Silicon，即闲置未使用的计算资源）”，调度器必须在满足层间依赖和全局内存大小约束的前提下，尽可能塞满所有子加速器。如果简单地采用贪心策略（总是分配到最优子加速器），往往会导致某些子加速器排起长队，而其他子加速器空闲，从而陷入全局次优。</p>
+<h3>HDA 设计空间探索算法（Design Space Exploration Algorithm for HDAs）</h3>
+<p>为了解决上述资源划分和调度的多维耦合问题，作者开发了 <strong>Herald</strong> 协同设计框架。本节详细介绍了 Herald 的执行模型、成本估算方法以及具体的优化算法。这里体现了体系结构与 EDA（电子设计自动化）在高级系统层面的互动：Herald 并没有进行物理级的布局布线（Place-and-Route），而是依靠架构侧的分析模型来指导资源分配和调度。</p>
+<p><strong>执行模型与成本估算</strong>
+Herald 假设 HDA 采用层级粒度（Layer granularity）执行，即一个完整的网络层被分配给一个子加速器执行。执行过程包含典型的双缓冲（Double-buffering）机制，即在一个层计算输出的同时，从 DRAM 预取下一层的激活和权重数据。<em>原文未说明具体的内存控制器物理实现，这是软件调度层面的抽象设定。</em></p>
+<p>为了估算某个调度方案的延迟和能耗，Herald 采用了 <strong>MAESTRO</strong> 成本模型。<em>背景补充：MAESTRO 是一个成熟的分析模型，它将架构的 PE 数量、缓存大小、NoC 带宽等参数转化为约束条件，通过分析数据流的循环展开方式，计算出计算周期数（用于延迟）和数据重用引发的访存次数（用于能耗）。</em> Herald 扩展了 MAESTRO 以支持多个子加速器异步并发执行的场景。这里，作者运行 MAESTRO 来分析延迟，并使用带有 28nm 工艺库的 CAD 工具来分析能耗。Herald 最终将这个代价模型作为目标函数，用于指导硬件切分和软件调度。</p>
+<p><strong>硬件资源划分与层执行调度优化</strong>
+Herald 的探索分为硬件和软件两部分：</p>
+<ol>
+<li><strong>硬件资源划分（Hardware Resource Partitioning）</strong>：作者发现均匀平分 PE 和带宽（例如 8K/8K）会导致次优的 EDP（如图 6 所示，比最优划分差 17%）。这是因为不同的数据流对带宽的渴求度和对特定层形状的并行效率截然不同。Herald 默认通过详尽搜索（或随机/采样搜索）来寻找最优的 PE 和全局 NoC 线束硬划分比例。<figure class="paper-figure"><a href="https://arxiv.org/pdf/1909.07437#page=6"><img src="figures/openalex-w3113087954/figure-6.png" alt="Figure 6: The impact of PE partitioning upon a cloud accelerator listed" loading="lazy"></a><figcaption>Figure 6 · <a href="https://arxiv.org/pdf/1909.07437#page=6">原文 PDF 第 6 页</a></figcaption></figure></li>
+<li><strong>层执行调度（Layer Execution Schedule Optimization）</strong>：这是一个极其庞大的搜索空间（例如某负载下有 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.54</mn><mo>×</mo><msup><mn>10</mn><mrow><mn>21</mn></mrow></msup></mrow></math></span> 种可能）。Herald 采用了一系列启发式算法（见图 8 和图 9）：
+<ul>
+<li><strong>基于数据流偏好的分配与全局负载均衡</strong>：首先贪心地将层分配给最省 EDP 的子加速器。当检测到负载极度不平衡（某个子加速器执行时间远超其他）时，调度器会触发反馈机制，将部分层退而求其次地分配给次优但空闲的子加速器。</li>
+<li><strong>启发式初始排序</strong>：利用模型内部的线性依赖（深度优先调度）和模型之间的独立性（广度优先调度）快速生成初始的有效执行序列。</li>
+<li><strong>死区时间消除（间隙填充）</strong>：初始调度可能会因为执行顺序不佳产生空闲等待。Herald 提供了一个复杂度为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>O</mi><mo stretchy="false">(</mo><mi>m</mi><mi>n</mi><mo stretchy="false">)</mo></mrow></math></span>（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>m</mi></mrow></math></span> 为模型总数，无量纲；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math></span> 为层总数，无量纲）的后处理算法，通过搜索可以提前执行的独立层来填补这些空闲时间戳。</li>
+</ul>
+</li>
+</ol>
+<p>最终，Herald 输出一套优化的 PE 和带宽划分方案，以及与之严格对应的各层调度时间表。</p>
+<h3>评估（Evaluations）</h3>
+<p>在实验部分，作者展示了使用 Herald 优化出的 HDA 在多类场景下的性能。</p>
+<p><strong>实验设置</strong>
+作者构建了 AR/VR-A、AR/VR-B 和 MLPerf 三种多 DNN 并发工作负载（表 2 详细列出了包含的模型和批处理大小）。基准加速器选择了前文提到的 FDA（NVDLA、Shi-diannao、Eyeriss），以及水平扩展的同构多核 FDA（SM-FDA）和可重构的 RDA（MAERI）。为了全面评估，作者参考了先前的研究，设置了边缘（Edge，1024 PE）、移动（Mobile，4096 PE）和云（Cloud，16384 PE）三种规模的硬件物理约束（表 4）。</p>
+<p><strong>核心发现与结果分析</strong></p>
+<ul>
+<li><strong>Maelstrom 架构的诞生</strong>：通过 Herald 的探索（图 11 展示了庞大的帕累托设计空间），作者发现一种由 NVDLA 风格和 Shi-diannao 风格组合而成的双向 HDA 在几乎所有场景下都表现出了最佳的延迟和能耗平衡。作者将这个特定的、由 Herald 优化过资源划分比例的架构命名为 <strong>Maelstrom</strong>。<figure class="paper-figure"><a href="https://arxiv.org/pdf/1909.07437#page=10"><img src="figures/openalex-w3113087954/figure-11.png" alt="Figure 11: Design space of two- and three-way HDAs. Each row of the plots shows results for each workload listed in Table II on three" loading="lazy"></a><figcaption>Figure 11 · <a href="https://arxiv.org/pdf/1909.07437#page=10">原文 PDF 第 10 页</a></figcaption></figure></li>
+<li><strong>性能对比</strong>：在能耗延迟乘积（EDP）上，Maelstrom 平均比最优的 FDA 提升了 73.6%（具体为延迟降低 65.3%，能耗降低 5.0%）。与支持细粒度重构的 RDA 相比，Maelstrom 的能耗低了 22.0%（因为去除了重构硬件的开销），代价是延迟增加了 20.7%。这证明了 HDA 是一种以极优能耗换取高性能的帕累托最优（Pareto-optimal）替代方案。</li>
+<li><strong>最优硬件划分背后的逻辑</strong>：表 5 揭示了 Maelstrom 的非对称资源划分。例如，在所有场景下，NVDLA 风格的子加速器平均被分配了多出 111.12% 的 PE。作者解释了背后的系统逻辑：工作负载中极大的通道并行度（如全连接层通道数高达 16.8M）极度偏好 NVDLA 的通道并行数据流；而 Shi-diannao 风格虽然分到的 PE 少，但其数据流特性导致它对数据搬运的要求更高，因此平均被多分配了 8.2% 的带宽。这种非直观的结论证明了 Herald 系统级协同搜索的必要性。</li>
+<li><strong>工作负载变化的鲁棒性</strong>：针对芯片流片后应用可能发生变化的问题，作者在图 13 中进行了交叉测试（例如在为 AR/VR-A 优化的 Maelstrom 上运行 AR/VR-B 负载）。结果显示，即使工作负载改变，Maelstrom 的延迟和能耗平均仅退化了 4.0% 和 0.1%，依然大幅领先 FDA，显示了 HDA 架构良好的健壮性。</li>
+</ul>
+<h3>结论与相关工作（Conclusion &amp; Related Works）</h3>
+<p>作者在相关工作中回顾了现有的单数据流加速器（如 Eyeriss 的行驻留、TPU 的脉动阵列）以及多 DNN 加速器，强调 Herald 是首个利用子加速器数据流异构性，并同时协同优化硬件资源划分和层级调度的框架。</p>
+<p>在结论中，作者总结了全文的核心逻辑主线：新兴的 AR/VR 等应用引入了由多个具有极端形状和操作差异的神经网络组成的异构工作负载；传统的固定数据流硬件（FDA）无法兼顾这种多样性，而可重构硬件（RDA）的动态开关带来了无法忽视的能耗面积惩罚；为了在两者之间找到最佳平衡，本文提出了异构数据流加速器（HDA）这一全新的系统设计理念，并通过 Herald 工具自动克服了复杂的硬件切分与软件调度耦合难题，最终推导出了 Maelstrom 这一具有极高能效的帕累托最优架构。文章也隐性地指出其主要局限性：当前的评估高度依赖 MAESTRO 分析模型的准确性，且调度停留在层级粒度，未能深入探索更细粒度的计算块（Tile）级跨核调度。</p>
+</div></td></tr></table></body></html>

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PAPI: Exploiting Dynamic Parallelism in Large Language Model Decoding with a Processing-In-Memory-Enabled Computing System · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>PAPI: Exploiting Dynamic Parallelism in Large Language Model Decoding with a Processing-In-Memory-Enabled Computing System</h1><p class="paper-note">Yintao He, Haiyu Mao, Christina Giannoula, Mohammad Sadrosadati, Juan Gómez-Luna, Huawei Li, Xiaowei Li, Ying Wang, Onur Mutlu · Proceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2 · 2025 · <a href="https://doi.org/10.1145/3676641.3716009">原文</a> · <a href="https://events.safari.ethz.ch/asplos25-MCCSys/lib/exe/fetch.php?media=papi-afterdr2.pdf">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>本文是对发表于 ASPLOS 2025 的会议推介材料《PAPI: Exploiting Dynamic Parallelism in Large Language Model Decoding with a Processing-In-Memory-Enabled Computing System》的详细解读。该研究由中国科学院计算技术研究所（ICT CAS）、伦敦国王学院（KCL）、多伦多大学、苏黎世联邦理工学院（ETH Zurich）及英伟达（NVIDIA）的研究人员共同完成。</p>
+<p>在详细讲解各个章节前，我们首先建立理解本文所需的<strong>最小背景和系统全貌（背景补充）</strong>：
+本文的研究对象是<strong>大型语言模型（LLM, Large Language Model）的硬件加速系统</strong>。在传统的计算架构（如 CPU+GPU）中，数据需要在存储器（内存）和计算核心（GPU 算力单元）之间频繁搬运，这在处理庞大参数的 LLM 时会造成巨大的“访存墙”瓶颈。为了解决这个问题，学术界和工业界引入了<strong>存内计算（PIM, Processing-In-Memory）<strong>技术，即在内存芯片内部或非常靠近内存的地方放置计算逻辑（如浮点运算单元 FPU, Floating-Point Processing Units），从而避免长距离搬运数据。
+本文讨论的系统层级属于</strong>体系结构与系统软件（调度器）的软硬协同设计</strong>层。数据流的起点是用户的文本请求，经过输入编码后进入 LLM 的各个网络层。在每一层中，数据需要分别经过注意力机制（Attention）和全连接层（FC, Fully-Connected）的计算，最终输出预测的下一个词（Token）。本文的核心焦点是：在 LLM 生成文本的这个过程中，计算量和访存量的比例是实时剧烈变化的，而现有的 PIM 硬件长得都一样且任务分配是固定写死的，导致效率低下。作者由此提出了一种拥有“两种不同 PIM 硬件”且能够在运行时“动态分配任务”的新系统 PAPI。</p>
+<p>以下是逐章节的详细解析。</p>
+<hr />
+<h3>1. 概念背景 (Background)</h3>
+<p>本节主要交代 LLM 推理过程中的基本执行特征，以及并行化策略的基本概念。</p>
+<p>首先，作者将 LLM 推理划分为两个截然不同的阶段：</p>
+<ul>
+<li><strong>预填充阶段 (Prefilling)</strong>：系统一次性读入用户输入的所有上下文提示词，并并行地对它们进行编码计算。这一阶段计算密集。</li>
+<li><strong>解码阶段 (Decoding)</strong>：系统根据前面的上下文，逐个（串行地）生成输出词（Token）。例如，生成“at the University of”是一步一步独立完成的。这也是 LLM 推理中最耗时、最容易受制于访存的阶段。本文的所有优化均针对<strong>解码阶段</strong>。</li>
+</ul>
+<p>在 LLM 的每一层网络结构中，包含两类核心计算核心（Kernel）：</p>
+<ul>
+<li><strong>注意力核心 (Attention kernels)</strong>：负责处理输入词汇之间的上下文关联，其计算依赖于当前正在处理的具体请求数据。</li>
+<li><strong>全连接核心 (FC kernels, Fully-connected kernels)</strong>：包含模型训练好的海量静态权重参数，用于所有生成的 Token。</li>
+</ul>
+<p>为了加速串行的解码过程，系统设计者通常会引入两种维度的并行化设计选择（这是系统软件或推理框架层面的设计选择，而非底层硬件强制要求）：</p>
+<ul>
+<li><strong>请求级并行度 (<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span>, Request-Level Parallelism)</strong>：代表同时处理的来自不同用户的多个请求数量（即 Batching，批处理），无量纲（原文未说明具体单位）。</li>
+<li><strong>词元级并行度 (<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi><mi>L</mi><mi>P</mi></mrow></math></span>, Token-Level Parallelism)</strong>：代表在同一个请求内部，通过一些特殊算法（如投机解码，Speculative Decoding）尝试同时生成或验证的多个 Token 数量，无量纲（原文未说明具体单位）。</li>
+</ul>
+<h3>2. 观察与动机 (Observations &amp; Motivation)</h3>
+<p>本节指出了现有系统未能解决的核心矛盾。作者通过对真实应用场景的分析，得出了三个关键观察。</p>
+<p>为了论证前两个观察，作者引入了**算术强度（Arithmetic Intensity）**这一概念，其单位为 FLOPs/Byte（每进行一字节的内存数据读写，伴随多少次浮点运算）。算术强度越高，说明任务越受限于计算能力（Compute-Bound）；算术强度越低，说明任务越受限于内存带宽（Memory-Bound）。作者在图（第 10、12 页幻灯片）中展示了基于 NVIDIA A100 GPU 测量的 <strong>Roofline 模型</strong>。Roofline 模型是一种常用于评估程序在特定硬件上性能上限的可视化工具，图中的 X 轴为算术强度，Y 轴为性能（TFLOPS，每秒万亿次浮点运算）。</p>
+<ul>
+<li><strong>观察 1：不同的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi><mi>L</mi><mi>P</mi></mrow></math></span> 配置下，计算和内存带宽的需求是变化的。</strong>
+从 Roofline 图中可以看出，Attention 核心始终处于低算术强度的区域（Memory-Bound）；但 FC 核心的位置会随着 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi><mi>L</mi><mi>P</mi></mrow></math></span> 的改变而剧烈移动。当 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span> 较大时，FC 核心能复用权重，属于计算受限（Compute-Bound）；但当 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span> 或 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi><mi>L</mi><mi>P</mi></mrow></math></span> 较小时，它会跨越临界点，变成内存受限（Memory-Bound）。</li>
+<li><strong>观察 2：同为“内存受限”的核心，对计算能力的需求依然大相径庭。</strong>
+图表进一步揭示，即使 FC 核心在某些配置下退化成了内存受限，其算术强度依然与天生就是极度内存受限的 Attention 核心（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&lt;</mo><mn>10</mn></mrow></math></span> FLOPs/Byte）完全不同（根据原文图表，计算受限的 FC 核心算术强度可达 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&gt;</mo><mn>30</mn></mrow></math></span> 或 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&gt;</mo><mn>60</mn></mrow></math></span> FLOPs/Byte，即使退化为内存受限，其算术强度也显著高于 Attention 核心）。</li>
+<li><strong>观察 3：LLM 核心的计算需求在运行时是动态变化的。</strong>
+（第 13 页图表）展示了一个批次中不同请求的解码周期分布。由于用户请求的句子长度各不相同，在使用静态批处理（Static batching）时，短句子会先生成完毕并退出，导致运行时的实际 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span> 随时间持续下降。这意味着，同一个 FC 核心在推理刚开始时可能是计算受限的，但算到后半段由于并发请求变少，会动态地退化为内存受限。</li>
+</ul>
+<p>基于上述观察，作者指出了<strong>现有最先进方案（State-of-the-Art）的两个严重缺陷</strong>：
+当前主流方案通常采用静态映射（将 Attention 核心固定扔给 PIM 处理，将 FC 核心固定留给 GPU 处理），且只使用一种规格的 PIM 芯片。</p>
+<ol>
+<li><strong>静态调度导致次优性能</strong>：因为 FC 核心的属性会动态突变，把它死绑在偏向算力的 GPU 上，一旦 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span> 下降，GPU 就会在等待数据搬运中空转。</li>
+<li><strong>单一类型的 PIM 芯片能力不匹配</strong>：现有的单一 PIM 无法同时兼顾 Attention 核心所需的极高带宽和内存受限版 FC 核心所需的特定计算能力。</li>
+</ol>
+<h3>3. PAPI 的核心思想与系统实现 (PAPI's Key Idea &amp; Implementation)</h3>
+<p>针对上述问题，作者提出了 <strong>PAPI (Processing-In-Memory-Enabled Computing System for Dynamic Parallelism)</strong>。其设计目标是构建一个异构系统，并通过在线动态识别核心属性来实现任务的动态调度。PAPI 包含两个关键组件：硬件层面的<strong>混合 PIM 单元 (Hybrid PIM units)</strong>，以及软件层面的<strong>动态运行时调度器 (Runtime Scheduler)</strong>。</p>
+<h4>3.1 混合 PIM 单元的硬件架构</h4>
+<p>（背景补充：现代 DRAM 内存的物理结构通常按照通道(Channel)、逻辑面(Rank)、块组(BG, Bank Group)和块(Bank)来组织。增加 Bank Group 数量可以提升并行的内存读写带宽；而在 PIM 中，在 Bank 旁布置计算单元 FPU 则能提供算力。）</p>
+<p>PAPI 的硬件在物理上分为两部分，对应两种不同的 PIM 设计，这是作者为适应不同计算特征而做出的明确<strong>架构设计选择</strong>：</p>
+<ol>
+<li><strong>FC-PIM（全连接层存内计算单元）</strong>：被直接集成放置在高性能处理器（Host CPU 及加速器）内部。其微架构特点是<strong>每个 Bank 分配了更多的浮点计算单元 (More FPUs per Bank)</strong>，以此提供相对较高的计算能力，专门伺候那些虽然掉入了“内存受限”区间、但相较之下仍需一定算力的 FC 核心。</li>
+<li><strong>Attn-PIM（注意力层存内计算设备）</strong>：与处理器解耦，作为独立的内存设备存在（类似外部显存）。其微架构特点是<strong>每层堆叠了更多的 Bank Group (More Bank Groups per Stack)</strong>。这种设计放弃了堆叠过多的算力，转而追求极致的内部存储带宽，专门伺候严重受限于内存带宽的 Attention 核心。</li>
+</ol>
+<h4>3.2 动态运行时调度器 (PAPI Runtime Scheduler) 与跨层接口</h4>
+<p>调度器作为系统软件存在，负责在程序运行时决定将每一层的计算任务分配给谁。其决策逻辑依赖于一个核心超参数：</p>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>α</mi></mrow></math></span>：<strong>内存受限阈值 (memory-boundedness threshold)</strong>。这是一个无量纲的经验数值，由作者在系统离线状态下通过迭代评估测试得出，作为划定算力受限与内存受限边界的约束目标。</li>
+</ul>
+<p><strong>体系结构与系统软件的跨层接口</strong>：调度器（系统软件层）通过实时监控硬件层面的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi><mi>L</mi><mi>P</mi></mrow></math></span>，预测 FC 核心的算术强度，并将其与离线获取的约束目标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>α</mi></mrow></math></span> 进行比较，从而向底层硬件传递具体的调度映射指令（将任务分配给 PU 或 FC-PIM）。此处的建模假设为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>α</mi></mrow></math></span> 可通过离线迭代评估准确获得。</p>
+<p>调度流程分为三步（参见第 31、41 页流程图）：</p>
+<ol>
+<li><strong>监控并行度 (Monitor Parallelism Levels)</strong>：系统在运行时实时采集当前的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi><mi>L</mi><mi>P</mi></mrow></math></span>。</li>
+<li><strong>算术强度预测 (Arithmetic Intensity Predictor)</strong>：根据当前的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi><mi>L</mi><mi>P</mi></mrow></math></span>，预测 FC 核心即将面临的算术强度（幻灯片 41 页中简化表示为 Estimated value，即估计值）。随后将该估计值与设定的阈值 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>α</mi></mrow></math></span> 进行比较。</li>
+<li><strong>动态任务调度 (Schedule the FC Kernels)</strong>：
+<ul>
+<li>如果估计值 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&gt;</mo><mi>α</mi></mrow></math></span>：说明当前并发度高，FC 核心处于计算受限状态，调度器将其分配给处理器内的标准处理单元（<strong>PU</strong>, Processing Units，充当传统 GPU 的角色）。</li>
+<li>如果估计值 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&lt;</mo><mi>α</mi></mrow></math></span>：说明并发度下降，FC 核心转变为内存受限状态，调度器将其重新分配给处理器内部的 <strong>FC-PIM</strong> 单元处理，以就近利用数据。</li>
+<li>（Attention 核心由于始终极度缺乏带宽，被固定分配给外部的 Attn-PIM 处理）。</li>
+</ul>
+</li>
+</ol>
+<h3>4. 实验评估 (Evaluation)</h3>
+<p>本节展示了 PAPI 相比于现有基线设计的性能与能效优势。</p>
+<ul>
+<li><strong>实验方法与基线</strong>：作者使用 AttAcc（ASPLOS '24 的一款 PIM 模拟器）和 Ramulator 2 内存模拟器进行性能和能耗的联合仿真。对比的基线（Baselines）包括：原版 AttAcc 架构、传统的“GPU + HBM-PIM”组合（NVIDIA A100 GPU 配合三星带有存内计算的 HBM-PIM 内存），以及“纯 PIM (PIM-only)”系统（即 AttAcc 中的 PIM 设备）。</li>
+<li><strong>工作负载与数据集</strong>：测试了三个不同规模的 Transformer 模型（LLaMA-65B，GPT-3 66B，GPT-3 175B），使用 Dolly 数据集（包含创造性写作和常规问答任务），这确保了测试覆盖了真实的动态序列长度变化。</li>
+<li><strong>结果分析 (Fig. 34, 35)</strong>：
+在图 34（性能加速比，Y轴为归一化 Speedup）和图 35（能耗对比，Y轴为归一化 Energy Consumption）中，X 轴列举了不同模型的不同初始 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span>（4, 16, 64）和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi><mi>L</mi><mi>P</mi></mrow></math></span>（1, 2, 4）组合。
+<ul>
+<li><strong>性能方面</strong>：无论 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi><mi>L</mi><mi>P</mi></mrow></math></span> 和初始 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span> 如何变化，蓝色的 PAPI 柱状图始终显著高于其他基线。相比于目前最先进的 GPU+HBM-PIM，PAPI 提供了 <strong>1.8倍到 1.9倍</strong> 的性能加速；相比于纯 PIM 架构，提供了 <strong>11.1倍</strong> 的综合加速。这证明了动态切走“退化的 FC 核心”到专属 PIM 硬件上的巨大收益。</li>
+<li><strong>能耗方面</strong>：由于大幅减少了在内存受限时无效的数据搬运和 GPU 空转，PAPI 提供了显著的能耗节约。相比于 AttAcc 和 GPU+HBM-PIM 基线，PAPI 均提供了 <strong>2.42X</strong> 的能耗节省（energy savings）；而相比于纯 PIM 架构，PAPI 提供了 <strong>0.15X</strong> 的能耗节省（两者能耗处于同一数量级）。</li>
+</ul>
+</li>
+</ul>
+<h3>5. 总结 (Conclusion)</h3>
+<p><strong>主线总结</strong>：
+本文以解决 LLM 解码阶段因“批次请求长度不一”导致的“计算/访存瓶颈动态漂移”问题为主线。由于全连接层（FC）在运行时会随着并发请求的减少，从“缺算力”突变为“缺带宽”，而现有的静态硬件（要么只有标准 GPU，要么只有单一规格的 PIM）无法在运行时适应这种突变。
+为了解决这一问题，作者不仅在硬件上设计了两种不同偏好的存内计算单元（重算力的 FC-PIM 和重带宽的 Attn-PIM），还在系统软件层引入了轻量级的动态调度器。调度器通过简单的阈值比较（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>α</mi></mrow></math></span>），在程序运行时将任务实时路由到最契合其当前算术强度的硬件部件上，最终在性能和能效上实现了对现有基线架构的同步提升。</p>
+<p><strong>局限性与前提假设（基于系统逻辑推断）</strong>：
+尽管结果优异，但本文的结论建立在几个特定的前提下：首先，其高度依赖于离线确定的阈值超参数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>α</mi></mrow></math></span>，在面对完全未知的模型或极端数据分布时，固定的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>α</mi></mrow></math></span> 能否保持最优未经验证（原文未说明 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>α</mi></mrow></math></span> 的在线自适应更新机制）；其次，架构设计强依赖于“静态批处理（Static batching）”或混合批处理导致的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>L</mi><mi>P</mi></mrow></math></span> 衰减现象，如果未来推理框架采用极其激进的完美连续批处理（Continuous batching 且序列长度高度一致），该动态调度的触发频率和收益可能会打折扣。</p>
+</div></td></tr></table></body></html>
