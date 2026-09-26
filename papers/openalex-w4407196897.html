@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forecasting GPU Performance for Deep Learning Training and Inference · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>Forecasting GPU Performance for Deep Learning Training and Inference</h1><p class="paper-note">Seonho Lee, Amar Phanishayee, Divya Mahajan · Proceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 1 · 2025 · <a href="https://doi.org/10.1145/3669940.3707265">原文</a> · <a href="https://arxiv.org/pdf/2407.13853">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>本文提出了一种名为 NeuSight 的预测框架，旨在不依赖目标硬件实际执行的情况下，准确预测深度学习（Deep Learning, DL）模型在未知（全新或无法获取）图形处理器（GPU）上的训练和推理延迟。以下将按论文逻辑逐章节详细解析。</p>
+<h3>一、 引言（Introduction）与背景（Background）</h3>
+<h4>1. 问题背景与系统全貌</h4>
+<p>在深度学习领域，模型规模（如 GPT-3 等大型语言模型）正呈指数级增长，而作为核心算力的 GPU 硬件（如 NVIDIA H100）也在不断迭代。然而，新型 GPU 往往极其昂贵或面临长达数月的交货期。这就引出了一个关键问题：<strong>如何在新 GPU 不可用时，准确预测现有或未来的深度学习模型在它上面的执行性能？</strong></p>
+<p>为了理解本文的预测对象，需要先建立 <strong>GPU 与深度学习执行的最小系统全貌</strong>：</p>
+<ul>
+<li><strong>流多处理器（Streaming Multiprocessor, SM）</strong>：GPU 的核心计算构建块。一个 GPU 包含数十到上百个完全相同的 SM。每个 SM 拥有自己的指令调度器、计算核心以及极其快速但容量很小的 L1 缓存（一级缓存）。</li>
+<li><strong>L2 缓存与片外内存</strong>：所有 SM 共享一个更大的 L2 缓存（二级缓存），L2 缓存再连接到片外的高带宽内存（High-Bandwidth Memory, HBM）或动态随机存取存储器（DRAM）。</li>
+<li><strong>深度学习内核（Kernel）</strong>：深度学习模型由多个层（如全连接层、卷积层）组成。在软件框架（如 PyTorch）和底层算子库（如 NVIDIA 的 cuDNN 或 CUTLASS）的调度下，这些层被分解为特定的“内核”（Kernel），例如通用矩阵乘法（GEMM）、元素级加法（Element-wise Add）或 Softmax 激活函数。<strong>本文中的内核定义为：一旦在设备上启动，就会在 GPU 上完整执行完毕的不可分割的张量操作。</strong> 数据从片外内存加载到 L2 缓存，再分配给各个 SM，SM 计算完成后将结果写回。本文的讨论正是聚焦于“内核”如何映射到“SM”这一软硬件交互层。</li>
+</ul>
+<h4>2. 现有方法的局限性（Motivation）</h4>
+<p>文章指出，现有的 GPU 性能预测方法存在严重缺陷。此前的研究主要分为两类：一是基于周期级别的硬件模拟器（Cycle-accurate simulators），这类方法需要对 GPU 的每一个微架构细节进行建模，仿真一个简单的 ResNet-50 模型可能需要数小时到数天，且每次推出新 GPU 都需手动更新模型，耗时过长；二是直接使用机器学习（如多层感知机 MLP 或线性回归）将 GPU 宏观特征（如总内存带宽、峰值算力）映射为内核延迟（如 Habitat 和 Li et al. 的工作）。</p>
+<p>通过图 2 的实验，作者证明了直接使用机器学习预测整个内核延迟的方法在新模型和新 GPU 上会产生巨大的误差（如 Habitat 预测 GPT3 训练的误差高达 121.4%）。这是因为 GPU 的执行受到软件算子库优化（如分块执行）和硬件非线性调度（如线程束隐藏延迟）的双重复杂影响。简单地增加机器学习模型的层数（如引入 Transformer 架构）也无法解决超出训练分布外（Out-of-distribution）的泛化问题。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.13853#page=3"><img src="figures/openalex-w4407196897/figure-2.png" alt="Figure 2: Prediction error of prior work on BMM operator," loading="lazy"></a><figcaption>Figure 2 · <a href="https://arxiv.org/pdf/2407.13853#page=3">原文 PDF 第 3 页</a></figcaption></figure>
+<h3>二、 NeuSight 预测方法（NeuSight Forecasting）</h3>
+<p>为了解决上述泛化问题，NeuSight 放弃了直接用黑盒机器学习预测整体内核延迟的思路，转而<strong>将预测分解为更小的问题，并强制施加物理性能定律作为边界约束</strong>。</p>
+<h4>1. 基于分块（Tile）的执行洞察</h4>
+<p>理解 NeuSight 的核心在于理解算子库是如何优化内核的。以通用矩阵乘法（GEMM）为例，现代算子库不会让 GPU 强行一次性计算庞大的输出矩阵，而是将其在逻辑上划分为多个相同的<strong>分块（Tile）</strong>。</p>
+<ul>
+<li><strong>Tile 的定义</strong>：此处 Tile 并非指物理芯片上的芯粒（Chiplet），而是软件层面为了适配单个 SM 的 L1 缓存和寄存器大小，人为划分出的输出矩阵的二维计算子集（例如 128x128 的矩阵块）。（背景补充：将大任务切分为 Tile，可以确保所需数据驻留在高速的片上内存中，最大化数据复用，这是现代体系结构优化的基石）。</li>
+<li><strong>波（Wave）的定义</strong>：这些 Tile 会被分发到 GPU 的各个 SM 上独立执行。由于 GPU 的 SM 数量有限，所有的 Tile 通常需要分批次执行。一批同时在所有可用 SM 上并行执行的 Tile 集合，在本文中被称为一个“波”（Wave）。</li>
+</ul>
+<h4>2. 物理性能定律约束（Roofline 模型）</h4>
+<p>GPU 的执行速度不能违背物理定律。NeuSight 引入了 Roofline 模型来计算内核的理论性能上限。首先定义以下公式中的基本物理与数学量：
+对于任意深度学习内核 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math></span>（标量，原文未说明单位），作者定义：</p>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi><mi>l</mi><mi>o</mi><mi>p</mi><msub><mi>s</mi><mi>k</mi></msub></mrow></math></span>：内核 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math></span> 需要执行的总浮点运算次数（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>m</mi><mi>e</mi><msub><mi>m</mi><mi>k</mi></msub></mrow></math></span>：内核 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>k</mi></mrow></math></span> 读写片外内存的内存事务大小（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span>：算术强度（标量，原文未说明单位），定义为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi><mo>=</mo><mfrac><mrow><mi>f</mi><mi>l</mi><mi>o</mi><mi>p</mi><msub><mi>s</mi><mi>k</mi></msub></mrow><mrow><mi>m</mi><mi>e</mi><msub><mi>m</mi><mi>k</mi></msub></mrow></mfrac></mrow></math></span>。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>p</mi></mrow></math></span>：下标，代表 peak（峰值）（原文未明确说明，但用于表示峰值属性）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi><mi>l</mi><mi>o</mi><mi>p</mi><msub><mi>s</mi><mi>p</mi></msub></mrow></math></span>：目标 GPU 的峰值浮点计算能力（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>B</mi><mi>W</mi></mrow></math></span>：下标，代表 bandwidth（带宽）（原文未明确说明，但用于表示带宽属性）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>m</mi><mi>e</mi><mi>m</mi><mi>B</mi><msub><mi>W</mi><mi>p</mi></msub></mrow></math></span>：目标 GPU 的峰值内存带宽（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>r</mi><mi>o</mi><mi>o</mi><mi>f</mi><mi>l</mi><mi>i</mi><mi>n</mi><msub><mi>e</mi><mrow><mi>B</mi><mi>W</mi></mrow></msub></mrow></math></span>：Roofline 带宽（标量，原文未说明单位，代表 GPU 执行该内核时理论上能达到的最大吞吐量）。</li>
+</ul>
+<p>公式 (1) 定义了理论上限：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>r</mi><mi>o</mi><mi>o</mi><mi>f</mi><mi>l</mi><mi>i</mi><mi>n</mi><msub><mi>e</mi><mrow><mi>B</mi><mi>W</mi></mrow></msub><mo>=</mo><mo>min</mo><mo stretchy="false">(</mo><mi>K</mi><mo>×</mo><mi>m</mi><mi>e</mi><mi>m</mi><mi>B</mi><msub><mi>W</mi><mi>p</mi></msub><mo>,</mo><mi>f</mi><mi>l</mi><mi>o</mi><mi>p</mi><msub><mi>s</mi><mi>p</mi></msub><mo stretchy="false">)</mo></mrow></math>
+</div>
+<p>这意味着，如果算术强度 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span> 较低，内核性能受限于内存带宽（内存受限）；如果 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span> 较高，则受限于计算核心（计算受限）。</p>
+<h4>3. Tile 粒度的预测模型（数学公式推导链）</h4>
+<p>NeuSight 将整个内核的延迟预测转化为对单个 Tile 延迟的预测，再乘以所需的波（Wave）数。后续公式依序定义如下：</p>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span>：输出矩阵的维度数量（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span>：遍历维度 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn></mrow></math></span> 到 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 的索引（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>x</mi><mi>i</mi></msub></mrow></math></span>：输出矩阵在第 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 个维度上的大小（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>t</mi><mi>i</mi></msub></mrow></math></span>：划分的 Tile 在第 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 个维度上的大小（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>t</mi><mi>i</mi><mi>l</mi><mi>e</mi><mi>s</mi></mrow></math></span>：下标，代表 tiles（分块）（原文未明确说明，但用于表示分块属性）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mi>u</mi><msub><mi>m</mi><mrow><mi>t</mi><mi>i</mi><mi>l</mi><mi>e</mi><mi>s</mi></mrow></msub></mrow></math></span>：内核被划分出的 Tile 总数（标量，原文未说明单位）。</li>
+</ul>
+<p>公式 (2) 计算总 Tile 数：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>n</mi><mi>u</mi><msub><mi>m</mi><mrow><mi>t</mi><mi>i</mi><mi>l</mi><mi>e</mi><mi>s</mi></mrow></msub><mo>=</mo><munderover><mo>∏</mo><mrow><mi>i</mi><mo>=</mo><mn>1</mn></mrow><mrow><mi>N</mi></mrow></munderover><mi>⌈</mi><mfrac><mrow><msub><mi>x</mi><mi>i</mi></msub></mrow><mrow><msub><mi>t</mi><mi>i</mi></msub></mrow></mfrac><mi>⌉</mi></mrow></math>
+</div>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi><mi>m</mi></mrow></math></span>：下标，代表 SMs（流多处理器）（原文未明确说明，但用于表示流多处理器属性）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mi>u</mi><msub><mi>m</mi><mrow><mi>s</mi><mi>m</mi></mrow></msub></mrow></math></span>：目标 GPU 上可用的 SM 总数（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>w</mi><mi>a</mi><mi>v</mi><mi>e</mi><mi>s</mi></mrow></math></span>：下标，代表 waves（波）（原文未明确说明，但用于表示波属性）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mi>u</mi><msub><mi>m</mi><mrow><mi>w</mi><mi>a</mi><mi>v</mi><mi>e</mi><mi>s</mi></mrow></msub></mrow></math></span>：执行完所有 Tile 需要的波的数量（标量，原文未说明单位）。</li>
+</ul>
+<p>公式 (3) 计算波的数量：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>n</mi><mi>u</mi><msub><mi>m</mi><mrow><mi>w</mi><mi>a</mi><mi>v</mi><mi>e</mi><mi>s</mi></mrow></msub><mo>=</mo><mi>⌈</mi><mfrac><mrow><mi>n</mi><mi>u</mi><msub><mi>m</mi><mrow><mi>t</mi><mi>i</mi><mi>l</mi><mi>e</mi><mi>s</mi></mrow></msub></mrow><mrow><mi>n</mi><mi>u</mi><msub><mi>m</mi><mrow><mi>s</mi><mi>m</mi></mrow></msub></mrow></mfrac><mi>⌉</mi></mrow></math>
+</div>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>P</mi><mi>e</mi><mi>r</mi><mi>T</mi><mi>i</mi><mi>l</mi><mi>e</mi><mi>L</mi><mi>a</mi><mi>t</mi><mi>e</mi><mi>n</mi><mi>c</mi><mi>y</mi></mrow></math></span>：单个 Tile 在单个 SM 上的执行延迟（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>P</mi><mi>e</mi><mi>r</mi><mi>O</mi><mi>p</mi><mi>L</mi><mi>a</mi><mi>t</mi><mi>e</mi><mi>n</mi><mi>c</mi><mi>y</mi></mrow></math></span>：整个内核的总体执行延迟（标量，原文未说明单位）。假设每个 SM 一次只执行一个 Tile，总延迟与波的数量呈线性关系。</li>
+</ul>
+<p>公式 (4) 计算内核延迟：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>P</mi><mi>e</mi><mi>r</mi><mi>O</mi><mi>p</mi><mi>L</mi><mi>a</mi><mi>t</mi><mi>e</mi><mi>n</mi><mi>c</mi><mi>y</mi><mo>=</mo><mi>P</mi><mi>e</mi><mi>r</mi><mi>T</mi><mi>i</mi><mi>l</mi><mi>e</mi><mi>L</mi><mi>a</mi><mi>t</mi><mi>e</mi><mi>n</mi><mi>c</mi><mi>y</mi><mo>×</mo><mi>n</mi><mi>u</mi><msub><mi>m</mi><mrow><mi>w</mi><mi>a</mi><mi>v</mi><mi>e</mi><mi>s</mi></mrow></msub></mrow></math>
+</div>
+<p>那么如何求得 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>P</mi><mi>e</mi><mi>r</mi><mi>T</mi><mi>i</mi><mi>l</mi><mi>e</mi><mi>L</mi><mi>a</mi><mi>t</mi><mi>e</mi><mi>n</mi><mi>c</mi><mi>y</mi></mrow></math></span>？作者指出它受限于单 Tile 的计算量和实际达到的带宽：</p>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>t</mi><mi>i</mi><mi>l</mi><mi>e</mi></mrow></math></span>：下标，代表 tile（分块）（原文未明确说明，但用于表示分块属性）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi><mi>l</mi><mi>o</mi><mi>p</mi><msub><mi>s</mi><mrow><mi>t</mi><mi>i</mi><mi>l</mi><mi>e</mi></mrow></msub></mrow></math></span>：单个 Tile 的浮点运算次数（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>a</mi><mi>c</mi><mi>h</mi><mi>i</mi><mi>e</mi><mi>v</mi><mi>e</mi><msub><mi>d</mi><mrow><mi>B</mi><mi>W</mi></mrow></msub></mrow></math></span>：执行该内核时实际达到的吞吐量（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>u</mi><mi>t</mi><mi>i</mi><mi>l</mi><mi>i</mi><mi>z</mi><mi>a</mi><mi>t</mi><mi>i</mi><mi>o</mi><mi>n</mi></mrow></math></span>：硬件利用率（标量，原文未说明单位），代表实际吞吐量占 Roofline 理论上限的比例。</li>
+</ul>
+<p>公式 (5) 与 (6) 建立延迟与利用率的联系：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>P</mi><mi>e</mi><mi>r</mi><mi>T</mi><mi>i</mi><mi>l</mi><mi>e</mi><mi>L</mi><mi>a</mi><mi>t</mi><mi>e</mi><mi>n</mi><mi>c</mi><mi>y</mi><mo>=</mo><mfrac><mrow><mi>f</mi><mi>l</mi><mi>o</mi><mi>p</mi><msub><mi>s</mi><mrow><mi>t</mi><mi>i</mi><mi>l</mi><mi>e</mi></mrow></msub></mrow><mrow><mi>a</mi><mi>c</mi><mi>h</mi><mi>i</mi><mi>e</mi><mi>v</mi><mi>e</mi><msub><mi>d</mi><mrow><mi>B</mi><mi>W</mi></mrow></msub></mrow></mfrac></mrow></math>
+</div>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>a</mi><mi>c</mi><mi>h</mi><mi>i</mi><mi>e</mi><mi>v</mi><mi>e</mi><msub><mi>d</mi><mrow><mi>B</mi><mi>W</mi></mrow></msub><mo>=</mo><mi>r</mi><mi>o</mi><mi>o</mi><mi>f</mi><mi>l</mi><mi>i</mi><mi>n</mi><msub><mi>e</mi><mrow><mi>B</mi><mi>W</mi></mrow></msub><mo>×</mo><mi>u</mi><mi>t</mi><mi>i</mi><mi>l</mi><mi>i</mi><mi>z</mi><mi>a</mi><mi>t</mi><mi>i</mi><mi>o</mi><mi>n</mi></mrow></math>
+</div>
+<p><strong>最终的非线性问题落在如何预测 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>u</mi><mi>t</mi><mi>i</mi><mi>l</mi><mi>i</mi><mi>z</mi><mi>a</mi><mi>t</mi><mi>i</mi><mi>o</mi><mi>n</mi></mrow></math></span> 上。</strong> 此时，机器学习终于登场。作者观察到，随着波的数量（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi><mi>u</mi><msub><mi>m</mi><mrow><mi>w</mi><mi>a</mi><mi>v</mi><mi>e</mi><mi>s</mi></mrow></msub></mrow></math></span>）增加，GPU SM 内被调度的线程数增加，能更有效地隐藏访存停顿延迟，从而提高利用率，但最终会收敛到一个上限。</p>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>a</mi><mi>l</mi><mi>p</mi><mi>h</mi><mi>a</mi></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>b</mi><mi>e</mi><mi>t</mi><mi>a</mi></mrow></math></span>：利用率曲线的形状参数（标量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mi>L</mi><mi>P</mi></mrow></math></span>：多层感知机（Multi-Layer Perceptron），一种基础的前馈人工神经网络，此处作为回归模型（函数/模型，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi><mi>n</mi><mi>p</mi><mi>u</mi><mi>t</mi><mi>_</mi><mi>f</mi><mi>e</mi><mi>a</mi><mi>t</mi><mi>u</mi><mi>r</mi><mi>e</mi><mi>s</mi></mrow></math></span>：输入给 MLP 的硬件和内核特征向量（向量，原文未说明单位）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>σ</mi></mrow></math></span>：Sigmoid 激活函数（函数，原文未说明单位），用于将预测的利用率值限制在 1 以下，确保利用率不会违反物理定律。</li>
+</ul>
+<p>公式 (7) 和 (8) 定义了利用率的预测逻辑：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>u</mi><mi>t</mi><mi>i</mi><mi>l</mi><mi>i</mi><mi>z</mi><mi>a</mi><mi>t</mi><mi>i</mi><mi>o</mi><mi>n</mi><mo>=</mo><mi>a</mi><mi>l</mi><mi>p</mi><mi>h</mi><mi>a</mi><mo>−</mo><mfrac><mrow><mi>b</mi><mi>e</mi><mi>t</mi><mi>a</mi></mrow><mrow><mi>n</mi><mi>u</mi><msub><mi>m</mi><mrow><mi>w</mi><mi>a</mi><mi>v</mi><mi>e</mi><mi>s</mi></mrow></msub></mrow></mfrac></mrow></math>
+</div>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>a</mi><mi>l</mi><mi>p</mi><mi>h</mi><mi>a</mi><mo>,</mo><mi>b</mi><mi>e</mi><mi>t</mi><mi>a</mi><mo>=</mo><mi>σ</mi><mo stretchy="false">(</mo><mi>M</mi><mi>L</mi><mi>P</mi><mo stretchy="false">(</mo><mi>i</mi><mi>n</mi><mi>p</mi><mi>u</mi><mi>t</mi><mi>_</mi><mi>f</mi><mi>e</mi><mi>a</mi><mi>t</mi><mi>u</mi><mi>r</mi><mi>e</mi><mi>s</mi><mo stretchy="false">)</mo><mo stretchy="false">)</mo></mrow></math>
+</div>
+<h4>4. MLP 模型的设计选择</h4>
+<p>作者设计了包含 8 个隐藏层（每层 512 个神经元）和 ReLU 激活函数的 MLP。为了支持不同算子，针对矩阵乘法、全连接层、元素级操作、Softmax 和层归一化分别训练了 5 个专用的 MLP。对于未见过的罕见算子，则悲观地假设其完全受限于内存带宽来直接估算。
+<strong>关键设计选择</strong>：为了让 MLP 能够泛化到不同 GPU，输入特征 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi><mi>n</mi><mi>p</mi><mi>u</mi><mi>t</mi><mi>_</mi><mi>f</mi><mi>e</mi><mi>a</mi><mi>t</mi><mi>u</mi><mi>r</mi><mi>e</mi><mi>s</mi></mrow></math></span> 并非直接使用整个 GPU 的宏观参数，而是将硬件资源除以 SM 数量，得到<strong>每个 SM 的特征</strong>（如表 3 所示：单 SM 峰值 FLOPS、单 SM 内存带宽、单 SM 的 L2 缓存大小等）。这与 Tile 映射到单一 SM 执行的物理事实严丝合缝。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.13853#page=8"><img src="figures/openalex-w4407196897/table-3.png" alt="Table 3: List of input features for predicting the utilization.                                5 NeuSight Workflow" loading="lazy"></a><figcaption>Table 3 · <a href="https://arxiv.org/pdf/2407.13853#page=8">原文 PDF 第 8 页</a></figcaption></figure>
+<h3>三、 NeuSight 工作流与分布式执行扩展（Workflow &amp; Distributed Execution）</h3>
+<p>文章图 6 展示了系统工作流：</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.13853#page=8"><img src="figures/openalex-w4407196897/figure-6.png" alt="Figure 6: Overall workflow of NeuSight. The Tile Latency Predictor uses an MLP to determine the utilization and predicts" loading="lazy"></a><figcaption>Figure 6 · <a href="https://arxiv.org/pdf/2407.13853#page=8">原文 PDF 第 8 页</a></figcaption></figure>
+<ol>
+<li><strong>图提取</strong>：利用 PyTorch 的 <code>torch.fx</code> 库解析目标深度学习模型的计算图，提取出每一个内核及其张量维度。</li>
+<li><strong>单设备预测</strong>：使用前述 Tile 预测模型，计算出每个内核的延迟。现代深度学习框架（如 PyTorch）为了减少显存读写，会进行<strong>算子融合（Operator Fusion）</strong>（例如将矩阵乘法和激活函数合并为一个内核）。NeuSight 在设计上支持这一特性，通过累加融合算子的 FLOPS 并丢弃中间结果的内存读写量来修正输入特征。预测出所有节点后，由于单 GPU 上内核是串行调度的，直接累加即可得到单卡端到端延迟。</li>
+<li><strong>分布式执行预测</strong>：这是本文的扩展功能，用于预测单台服务器内多卡（如通过 NVLink 互联的 4 卡或 8 卡）分布式训练的延迟。作者根据用户提供的并行策略（数据并行、张量并行或流水线并行），在计算图中插入相应的网络通信算子（如 All-reduce 或 Send/Receive）。通信算子的延迟由目标系统的物理链路带宽直接解析计算得出，然后与单卡计算延迟结合。</li>
+</ol>
+<p><strong>跨层关系说明（关于体系结构与 EDA）</strong>：
+本文完全聚焦于“软件层面的深度学习模型”如何映射到“微架构层面的 GPU 计算/存储资源”以进行性能预测。文中所使用的架构参数（如峰值 FLOPS、带宽、L2 缓存容量）均来自公开的硬件规格，作为先验常量输入给代价模型（MLP）。本文<strong>未涉及</strong>任何将这些性能指标反馈给电子设计自动化（EDA）工具以指导芯片布局、布线、时序或热分析的跨层协同优化。此类约束纯粹是“软件对已有硬件的适应”，而非“软件驱动硬件综合”。</p>
+<h3>四、 实验评估（Evaluation）</h3>
+<p>作者收集了包含 8 款 NVIDIA GPU 和 3 款 AMD GPU 的数据集。测试集特意保留了未参与模型训练的先进架构（如 NVIDIA H100 和 L4）以及未见过的大维度模型（如 GPT3-2.7B），以测试<strong>分布外泛化能力</strong>。</p>
+<h4>1. 单设备执行结果</h4>
+<p>图 7 展示了核心实验结论：在不同模型和批处理大小下，NeuSight 的预测误差显著低于基线方法。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.13853#page=11"><img src="figures/openalex-w4407196897/figure-7.png" alt="Figure 7: The inference and training latency prediction percentage error of NeuSight and baselines with different batch sizes" loading="lazy"></a><figcaption>Figure 7 · <a href="https://arxiv.org/pdf/2407.13853#page=11">原文 PDF 第 11 页</a></figcaption></figure>
+<ul>
+<li>纯粹使用解析理论（Roofline 分析）的平均误差在推理和训练上分别为 31.2% 和 31.9%。</li>
+<li>此前基于纯 MLP 的最优基线（Habitat）在训练分布内表现尚可，但在未见过的 H100 和大模型上彻底崩溃，推理和训练的平均误差分别达到 220.9% 和 725.8%（在未见过的分布外 GPU 上，Habitat 的平均误差为 724.3%）。</li>
+<li>相比之下，<strong>NeuSight 在推理和训练上的平均绝对百分比误差分别仅为 9.7% 和 7.3%</strong>，在未见过的 GPU 上最大误差也仅限制在 28.2%。</li>
+<li><strong>结果说明</strong>：这一巨大提升归功于 NeuSight 的混合架构：它不让机器学习直接猜测复杂的整体延迟，而是用物理定律（Roofline）兜底，用底层软件逻辑（Tiling）拆解，仅让机器学习去拟合那个“平滑且有界的利用率曲面”。</li>
+</ul>
+<h4>2. 跨厂商与新硬件的适应性</h4>
+<p>图 9 验证了 NeuSight 在 AMD GPU（MI100, MI210, MI250）上的表现，推理和训练的平均误差分别保持在 8.8% 和 15.7%。这证明了本文的“Tile 映射到 SM”的核心假设反映了现代高度并行加速器的通用计算范式，而并非仅针对 NVIDIA CUDA 的过拟合。
+此外，图 10 展示了当 H100 引入新的半精度（FP16）数据类型和特定的张量核心（Tensor Core）时，只要在输入特征中更新相应的峰值 FLOPS 和内存需求，NeuSight 依然能维持 13% 左右的平均误差率。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.13853#page=12"><img src="figures/openalex-w4407196897/figure-9.png" alt="Figure 9: The inference and training latency prediction per-                          matrix-multiplication on H100 Tensor Cores, illustrating" loading="lazy"></a><figcaption>Figure 9 · <a href="https://arxiv.org/pdf/2407.13853#page=12">原文 PDF 第 12 页</a></figcaption></figure><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.13853#page=12"><img src="figures/openalex-w4407196897/figure-10.png" alt="Figure 10: Performance of (NxN) x (NxN) matrix multipli-" loading="lazy"></a><figcaption>Figure 10 · <a href="https://arxiv.org/pdf/2407.13853#page=12">原文 PDF 第 12 页</a></figcaption></figure>
+<h4>3. 分布式执行结果</h4>
+<p>表 8 展示了服务器内部（如 4x A100 NVLink 或 4x H100 DGX Box）分布式训练的预测结果，平均误差约为 7.7%。这证明了通过准确预测单核延迟并叠加确定的网络通信开销，可以有效评估完整服务器的系统级性能。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.13853#page=13"><img src="figures/openalex-w4407196897/table-8.png" alt="Table 8: The distributed training latency prediction percentage error of NeuSight on H100 and A100 GPU servers training" loading="lazy"></a><figcaption>Table 8 · <a href="https://arxiv.org/pdf/2407.13853#page=13">原文 PDF 第 13 页</a></figcaption></figure>
+<h3>五、 总结主线与局限性（Conclusion）</h3>
+<p><strong>主线叙事</strong>：面对 AI 模型与硬件快速迭代导致“买不到新卡就无法评估新模型性能”的困境，本文发现直接用黑盒机器学习预测 GPU 这种具备复杂存储层次和编译优化的硬件注定失败。因此，作者顺应了算子库的底层设计逻辑，将宏观内核拆解为微观的分块（Tile），将预测目标从“绝对延迟”转换为“受制于 Roofline 物理上限的硬件利用率”，最终利用轻量级多层感知机（MLP）精确捕捉到了这种非线性映射，实现了一个能在完全未见过的下一代 GPU 上准确预测执行时间的框架（NeuSight）。</p>
+<p><strong>关键假设与局限性</strong>：</p>
+<ol>
+<li><strong>单流串行假设</strong>：模型（公式 4 及工作流描述）假设内核在单 GPU 上是严格串行执行的。这符合目前大多数深度学习框架的默认行为，但如果未来框架大量采用并发 CUDA Stream 执行多个不相关的微小内核，该累加预测逻辑将产生偏差。</li>
+<li><strong>Tile 大小推断</strong>：预测依赖于获取或估计 Tile 的大小（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>t</mi><mi>i</mi></msub></mrow></math></span>）。本文在训练时依赖 PyTorch Profiler 捕获历史数据建立数据库，预测时通过查找最匹配的特征来推断新硬件的 Tile 大小。如果未来的闭源算子库采用了一种完全革命性、无法被历史数据库近似的动态分块策略，模型的准确度可能会下降。</li>
+<li><strong>网络预测的局限</strong>：在分布式预测中（特别是表 9 中推算 3840 个节点的多机集群），由于资源限制，无法在如此规模的真实集群上验证此预测，因此其大规模集群的预测结论（表 9）不能被过度视为实际生产环境的绝对真理。<figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.13853#page=13"><img src="figures/openalex-w4407196897/table-9.png" alt="Table 9: NeuSight prediction for multi-node distributed                                     configuration, we use an 8-wide Tensor Model parallel setup" loading="lazy"></a><figcaption>Table 9 · <a href="https://arxiv.org/pdf/2407.13853#page=13">原文 PDF 第 13 页</a></figcaption></figure></li>
+</ol>
+</div></td></tr></table></body></html>
