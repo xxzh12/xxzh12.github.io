@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hybrid Heterogeneous Clusters Can Lower the Energy Consumption of LLM Inference Workloads · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>Hybrid Heterogeneous Clusters Can Lower the Energy Consumption of LLM Inference Workloads</h1><p class="paper-note">Grant Wilkins, Srinivasan Keshav, Richard Mortier · The 15th ACM International Conference on Future and Sustainable Energy Systems · 2024 · <a href="https://doi.org/10.1145/3632775.3662830">原文</a> · <a href="https://arxiv.org/pdf/2407.00010">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>本文将按照原论文的逻辑架构，为您详细解析《Hybrid Heterogeneous Clusters Can Lower the Energy Consumption of LLM Inference Workloads》（混合异构集群可降低大语言模型推理工作负载的能耗）一文。</p>
+<h3>核心背景补充与系统全貌</h3>
+<p>在深入原文本之前，为了帮助理解，我们先建立本文研究所处的系统层级和核心概念（背景补充）：
+<strong>大语言模型（LLM）<strong>是基于深度神经网络（通常为 Transformer 架构）构建的模型，通过海量文本训练，能够理解和生成自然语言。本文关注的是模型的</strong>推理（Inference）<strong>阶段，即模型训练完成后，接收用户输入并生成回答的实时运行过程。
+在 LLM 推理中，文本被划分为</strong>词元（Token）</strong>，它是模型处理的基本单位（可以理解为一个词或词的一部分）。一次完整的推理包含处理用户给定的<strong>输入词元（Input Tokens，又称 Prompt）</strong>，并逐个预测生成<strong>输出词元（Output Tokens）</strong>。
+支持这些计算的硬件基础是<strong>数据中心（Datacenter）</strong>，它由大量计算节点组成。传统的集群通常是同构的（统一的 CPU 或统一的 GPU），而**异构集群（Heterogeneous Clusters）**则混合了不同架构的硬件（例如既有低功耗的 ARM 处理器，也有高性能的 NVIDIA 显卡）。数据在系统中的流动路径为：用户的查询请求（Query）到达调度器 -&gt; 调度器将任务分配给某个具体的计算节点 -&gt; 节点上的处理器将模型权重加载到显存/内存中进行矩阵乘法运算 -&gt; 生成的词元返回给用户。</p>
+<p>**关于跨层协同与 EDA：**需要特别指出，本文的关注点在于“数据中心/节点级别”的系统架构与任务调度，探讨的是现成商业芯片（如 Apple M1、NVIDIA A100）在不同工作负载下的宏观功耗表现。文章并未涉及芯片微架构设计与电子设计自动化（EDA）之间的跨层联系。即，文章没有将处理器的性能指标转换为 EDA 布局布线、时序分析或片上网络约束的代价模型，不涉及物理版图层面的探讨。</p>
+<hr />
+<h3>1 &amp; 2. 绪论与背景 (Introduction &amp; Background)</h3>
+<p>随着 OpenAI 的 GPT-4 等大型语言模型的普及，AI 革命带来了巨大的技术进步，但也引发了对能源消耗的严重担忧。作者指出，尽管模型训练非常耗电，但从长期部署来看，在云基础设施上进行 LLM 推理所消耗的能源可能比训练高出 25 倍以上。</p>
+<p>传统的数据中心在运行 LLM 时面临一个矛盾：一方面，数十亿参数的模型和用户对低延迟的期望要求使用高性能、高功耗的硬件（如 GPU）；另一方面，不同长度的查询任务对算力的需求是不同的，传统调度策略并未将“硬件特性”与“具体的工作负载特征”结合起来，导致能源浪费。</p>
+<p>因此，本文最初遇到的<strong>问题背景</strong>是：如何在不严重牺牲推理性能的前提下，降低数据中心运行 LLM 时的整体能耗。作者提出的<strong>核心设计</strong>是引入一种“基于成本的调度框架”，构建混合异构数据中心。系统会感知工作负载——具体来说就是预估查询请求中输入和输出词元的数量，然后动态决定是将任务分配给高能效的低功耗处理器，还是分配给高性能的 GPU。</p>
+<hr />
+<h3>3. 问题表述 (Problem Formulation)</h3>
+<p>为了在数学上量化这一调度策略，作者建立了一个代价模型。该模型针对托管 LLM 的混合异构数据中心，定义了一个成本函数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>U</mi><mo stretchy="false">(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo stretchy="false">)</mo></mrow></math></span>，以同时兼顾能源消耗和运行时间。文中首次出现的公式如下：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>U</mi><mo stretchy="false">(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo stretchy="false">)</mo><mo>=</mo><mi>λ</mi><mi>E</mi><mo stretchy="false">(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo stretchy="false">)</mo><mo>+</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>λ</mi><mo stretchy="false">)</mo><mi>R</mi><mo stretchy="false">(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo stretchy="false">)</mo></mrow></math>
+</div>
+<p>在这里，作者从左至右定义了各个符号：</p>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>U</mi><mo stretchy="false">(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo stretchy="false">)</mo></mrow></math></span>：处理某项任务的总成本（单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>m</mi></mrow></math></span>：输入词元的数量（标量，单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math></span>：预期的输出词元的数量（标量，单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi></mrow></math></span>：处理该任务的具体硬件系统（分类变量，代表异构集群中的某个节点，单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>λ</mi></mrow></math></span>：一个可调参数，取值范围为集合 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">[</mo><mn>0</mn><mo>,</mo><mn>1</mn><mo stretchy="false">]</mo></mrow></math></span>（无量纲）。<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>λ</mi></mrow></math></span> 越大，系统越侧重于节能；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>λ</mi></mrow></math></span> 越小，系统越侧重于追求速度。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>E</mi><mo stretchy="false">(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo stretchy="false">)</mo></mrow></math></span>：系统 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi></mrow></math></span> 处理 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>m</mi></mrow></math></span> 个输入词元并生成 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math></span> 个输出词元所消耗的实际能量（标量，单位为焦耳 J，由后续实验测量得出）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mo stretchy="false">(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo stretchy="false">)</mo></mrow></math></span>：系统 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi></mrow></math></span> 完成该任务所需的运行时间（标量，单位为秒 s，由测量得出）。</li>
+</ul>
+<p>作者的目标是最小化所有任务分配到各个系统后的总成本，公式表示为：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mo>min</mo><mrow><mo stretchy="false">{</mo><msub><mi>Q</mi><mi>s</mi></msub><msub><mo stretchy="false">}</mo><mrow><mi>s</mi><mo>∈</mo><mi>S</mi></mrow></msub></mrow></msub><munder><mo>∑</mo><mrow><mi>s</mi><mo>∈</mo><mi>S</mi></mrow></munder><munder><mo>∑</mo><mrow><mo stretchy="false">(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo stretchy="false">)</mo><mo>∈</mo><msub><mi>Q</mi><mi>s</mi></msub></mrow></munder><mi>U</mi><mo stretchy="false">(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo stretchy="false">)</mo></mrow></math>
+</div>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mtext>s.t.</mtext><msub><mo>⋃</mo><mrow><mi>s</mi><mo>∈</mo><mi>S</mi></mrow></msub><msub><mi>Q</mi><mi>s</mi></msub><mo>=</mo><mi>Q</mi></mrow></math>
+</div>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mo>∀</mo><mi>s</mi><mi>:</mi><msub><mi>Q</mi><mi>s</mi></msub><mo>∩</mo><msub><mi>Q</mi><mrow><msup><mi>s</mi><mi>′</mi></msup></mrow></msub><mo>=</mo><mo>∅</mo><mtext> for </mtext><mi>s</mi><mo>≠</mo><msup><mi>s</mi><mi>′</mi></msup></mrow></math>
+</div>
+<p>这里进一步补充定义：</p>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi></mrow></math></span>：数据中心内所有可用硬件系统的集合（单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Q</mi></mrow></math></span>：当前需要处理的所有查询任务的集合（单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>Q</mi><mi>s</mi></msub></mrow></math></span>：被分配给特定系统 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi></mrow></math></span> 处理的任务子集（单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">{</mo><msub><mi>Q</mi><mi>s</mi></msub><msub><mo stretchy="false">}</mo><mrow><mi>s</mi><mo>∈</mo><mi>S</mi></mrow></msub></mrow></math></span>：系统调度器做出的分配策略（优化问题的自变量，单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>s</mi><mi>′</mi></msup></mrow></math></span>：表示与 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi></mrow></math></span> 不同的另一个系统（单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>⋃</mo></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>∩</mo></mrow></math></span> 分别代表集合的并集和交集；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>∅</mo></mrow></math></span> 代表空集。
+约束条件强制要求每一个任务都必须且只能被处理一次，不能遗漏也不能被重复分配。这是一个经典的调度问题约束（作者作出的算法设计选择）。</li>
+</ul>
+<hr />
+<h3>4. 研究方法 (Methods)</h3>
+<p>为了获取上一节公式中所需的能量 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>E</mi></mrow></math></span> 和时间 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi></mrow></math></span>，作者进行了实际的系统基准测试（Benchmark）。</p>
+<p><strong>模型选择（作者设计选择）：</strong>
+作者选取了三个拥有 70 亿参数（7B）的开源 LLM：Falcon、Llama-2 和 Mistral。选择 7B 级别是因为它们既具有代表性的先进架构，又能在单节点硬件上相对容易地部署。作者统一使用 Huggingface 的 Accelerate 软件库来规范跨平台的推理优化。</p>
+<p><strong>不同系统的能耗分析方法（测量推断逻辑）：</strong>
+为了准确测量上述公式中的能量 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>E</mi><mo stretchy="false">(</mo><mi>m</mi><mo>,</mo><mi>n</mi><mo>,</mo><mi>s</mi><mo stretchy="false">)</mo></mrow></math></span>，作者必须面对一个硬件现实：不同厂商的芯片提供能耗数据的接口和测量机制完全不同。因此，文章针对不同硬件分别推导了能量积分公式：</p>
+<p><strong>1. NVIDIA GPUs:</strong>
+作者使用 PyJoules 库通过 NVML（NVIDIA 管理库）接口轮询 GPU 功耗。能量计算为：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>E</mi><mrow><mi>T</mi><mi>o</mi><mi>t</mi><mi>a</mi><mi>l</mi><mo>,</mo><mi>G</mi><mi>P</mi><mi>U</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mi>i</mi></munder><msub><mi>P</mi><mrow><mi>G</mi><mi>P</mi><mi>U</mi><mo>,</mo><mi>i</mi></mrow></msub><mi>Δ</mi><msub><mi>t</mi><mi>i</mi></msub></mrow></math>
+</div>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>E</mi><mrow><mi>T</mi><mi>o</mi><mi>t</mi><mi>a</mi><mi>l</mi><mo>,</mo><mi>G</mi><mi>P</mi><mi>U</mi></mrow></msub></mrow></math></span>：GPU 在推理期间的总能耗（焦耳 J）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span>：离散时间步的索引（取值范围：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>P</mi><mrow><mi>G</mi><mi>P</mi><mi>U</mi><mo>,</mo><mi>i</mi></mrow></msub></mrow></math></span>：在时间步 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 测量到的 GPU 瞬时功率（标量，单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Δ</mi><msub><mi>t</mi><mi>i</mi></msub></mrow></math></span>：时间步 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 经历的时间间隔（单位：原文未说明）。</li>
+</ul>
+<p><strong>2. Apple Silicon (M1 Pro CPU/GPU):</strong>
+由于苹果不提供标准 API，作者通过轮询 macOS 的底层工具 <code>powermetrics</code> 获取数据。因为芯片上运行着许多后台程序，为了分离出单纯由 LLM 推理引发的能耗，作者使用了“能量影响因子”（Energy impact factor）。</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>E</mi><mrow><mi>T</mi><mi>o</mi><mi>t</mi><mi>a</mi><mi>l</mi><mo>,</mo><mi>C</mi><mi>P</mi><mi>U</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mi>i</mi></munder><mo stretchy="false">(</mo><msub><mi>α</mi><mi>i</mi></msub><msub><mi>P</mi><mrow><mi>C</mi><mi>P</mi><mi>U</mi><mo>,</mo><mi>i</mi></mrow></msub><mo stretchy="false">)</mo><mi>Δ</mi><msub><mi>t</mi><mi>i</mi></msub></mrow></math>
+</div>
+<ul>
+<li>沿用前面的记号，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>E</mi><mrow><mi>T</mi><mi>o</mi><mi>t</mi><mi>a</mi><mi>l</mi><mo>,</mo><mi>C</mi><mi>P</mi><mi>U</mi></mrow></msub></mrow></math></span> 代表 M1 芯片消耗的总能量（焦耳 J）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>P</mi><mrow><mi>C</mi><mi>P</mi><mi>U</mi><mo>,</mo><mi>i</mi></mrow></msub></mrow></math></span>：整个芯片的总功耗读取值（单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>α</mi><mi>i</mi></msub></mrow></math></span>：推理进程在时间步 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 占据的能量影响比例（无量纲，作者基于系统报告推算的系数，这是一个<strong>建模假设</strong>，可能存在一定误差）。</li>
+</ul>
+<p><strong>3. Intel CPUs:</strong>
+通过读取 Intel 处理器的 RAPL（运行平均功率限制）寄存器，并减去空载（Idle）功率来得到净推理能耗：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>E</mi><mrow><mi>T</mi><mi>o</mi><mi>t</mi><mi>a</mi><mi>l</mi><mo>,</mo><mi>C</mi><mi>P</mi><mi>U</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mi>i</mi></munder><mrow><mo stretchy="true">(</mo><mo stretchy="false">(</mo><msub><mi>P</mi><mrow><mi>P</mi><mi>a</mi><mi>c</mi><mi>k</mi><mi>a</mi><mi>g</mi><mi>e</mi><mo>−</mo><mn>0</mn><mo>,</mo><mi>i</mi></mrow></msub><mo>−</mo><msub><mi>P</mi><mrow><mi>P</mi><mi>a</mi><mi>c</mi><mi>k</mi><mi>a</mi><mi>g</mi><mi>e</mi><mo>−</mo><mn>0</mn><mo>,</mo><mi>I</mi><mi>d</mi><mi>l</mi><mi>e</mi></mrow></msub><mo stretchy="false">)</mo><mo>+</mo><mo stretchy="false">(</mo><msub><mi>P</mi><mrow><mi>P</mi><mi>a</mi><mi>c</mi><mi>k</mi><mi>a</mi><mi>g</mi><mi>e</mi><mo>−</mo><mn>1</mn><mo>,</mo><mi>i</mi></mrow></msub><mo>−</mo><msub><mi>P</mi><mrow><mi>P</mi><mi>a</mi><mi>c</mi><mi>k</mi><mi>a</mi><mi>g</mi><mi>e</mi><mo>−</mo><mn>1</mn><mo>,</mo><mi>I</mi><mi>d</mi><mi>l</mi><mi>e</mi></mrow></msub><mo stretchy="false">)</mo><mo stretchy="true">)</mo></mrow><mi>Δ</mi><msub><mi>t</mi><mi>i</mi></msub></mrow></math>
+</div>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>P</mi><mrow><mi>P</mi><mi>a</mi><mi>c</mi><mi>k</mi><mi>a</mi><mi>g</mi><mi>e</mi><mo>−</mo><mn>0</mn><mo>,</mo><mi>i</mi></mrow></msub></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>P</mi><mrow><mi>P</mi><mi>a</mi><mi>c</mi><mi>k</mi><mi>a</mi><mi>g</mi><mi>e</mi><mo>−</mo><mn>1</mn><mo>,</mo><mi>i</mi></mrow></msub></mrow></math></span>：时间步 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 下，Intel 双路服务器上处理器插槽（Package）0 和 1 的当前功率（单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>P</mi><mrow><mi>P</mi><mi>a</mi><mi>c</mi><mi>k</mi><mi>a</mi><mi>g</mi><mi>e</mi><mo>−</mo><mn>0</mn><mo>,</mo><mi>I</mi><mi>d</mi><mi>l</mi><mi>e</mi></mrow></msub></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>P</mi><mrow><mi>P</mi><mi>a</mi><mi>c</mi><mi>k</mi><mi>a</mi><mi>g</mi><mi>e</mi><mo>−</mo><mn>1</mn><mo>,</mo><mi>I</mi><mi>d</mi><mi>l</mi><mi>e</mi></mrow></msub></mrow></math></span>：预先测量出的处理器 0 和 1 的平均空闲基准功率（单位：原文未说明）。</li>
+</ul>
+<p><strong>4. AMD CPUs:</strong>
+通过 AMD<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>μ</mi></mrow></math></span>Prof 记录细粒度数据，并用 <code>psutil</code> 监控具体哪个核心在执行推理：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>E</mi><mrow><mi>T</mi><mi>o</mi><mi>t</mi><mi>a</mi><mi>l</mi><mo>,</mo><mi>C</mi><mi>P</mi><mi>U</mi></mrow></msub><mo>=</mo><munder><mo>∑</mo><mrow><mi>c</mi><mi>o</mi><mi>r</mi><mi>e</mi></mrow></munder><mrow><mo stretchy="true">(</mo><msub><mo>∑</mo><mi>i</mi></msub><msub><mi>P</mi><mrow><mi>c</mi><mi>o</mi><mi>r</mi><mi>e</mi><mo>,</mo><mi>i</mi></mrow></msub><mi>Δ</mi><msub><mi>t</mi><mi>i</mi></msub><mo stretchy="true">)</mo></mrow></mrow></math>
+</div>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>c</mi><mi>o</mi><mi>r</mi><mi>e</mi></mrow></math></span>：活跃参与推理的物理核心索引（取值范围：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>P</mi><mrow><mi>c</mi><mi>o</mi><mi>r</mi><mi>e</mi><mo>,</mo><mi>i</mi></mrow></msub></mrow></math></span>：单一核心在时间步 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 的功率（单位：原文未说明）。（原文括号括在最外层，此处含义为先计算单核时间积分，再对所有活跃核求和）。</li>
+</ul>
+<p>以上公式 (5) 至 (8) 中出现的下标含义如下：<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi><mi>o</mi><mi>t</mi><mi>a</mi><mi>l</mi></mrow></math></span> 表示总计；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>G</mi><mi>P</mi><mi>U</mi></mrow></math></span> 表示图形处理器；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>C</mi><mi>P</mi><mi>U</mi></mrow></math></span> 表示中央处理器；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>P</mi><mi>a</mi><mi>c</mi><mi>k</mi><mi>a</mi><mi>g</mi><mi>e</mi><mo>−</mo><mn>0</mn></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>P</mi><mi>a</mi><mi>c</mi><mi>k</mi><mi>a</mi><mi>g</mi><mi>e</mi><mo>−</mo><mn>1</mn></mrow></math></span> 分别表示处理器插槽 0 和 1；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>I</mi><mi>d</mi><mi>l</mi><mi>e</mi></mrow></math></span> 表示空闲状态；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>c</mi><mi>o</mi><mi>r</mi><mi>e</mi></mrow></math></span> 表示物理核心。</p>
+<hr />
+<h3>5. LLM 推理在不同集群上的性能 (LLM Inference Performance)</h3>
+<p>作者对比了三套硬件系统：M1 Pro（苹果轻量级低功耗芯片）、Swing AMD+A100（搭载 8 张顶级数据中心 GPU NVIDIA A100）和 Palmetto Intel+V100（搭载 2 张上一代 NVIDIA V100 GPU）。</p>
+<p><strong>实验设计与系统约束：</strong>
+作者进行了控制变量实验：一是固定输出词元为 32，变化输入词元（从 8 增加到 2048）；二是固定输入词元为 32，变化输出词元（从 8 增加到 4096）。为了保证测试的标准化，作者在软件层面强制禁用了 KV Cache（键值缓存）重用。
+在实验中触发了真实的<strong>硬件物理约束</strong>：当输出词元超过 512 时，M1 Pro 遭遇严重的运行时间惩罚；当输出词元超过 1024 或 2048 时，V100 显存不足（OOM错误）导致崩溃。</p>
+<p><strong>核心实验现象与图表解释：</strong>
+通过分析论文的数据表现（对应原论文<strong>图 1 和 图 2</strong>）：</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.00010#page=5"><img src="figures/openalex-w4400446017/figure-1.png" alt="Figure 1: Performance of Various Systems and Models for Processing Variable Input Tokens–Due to the low variance in the" loading="lazy"></a><figcaption>Figure 1 · <a href="https://arxiv.org/pdf/2407.00010#page=5">原文 PDF 第 5 页</a></figcaption></figure><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.00010#page=6"><img src="figures/openalex-w4400446017/figure-2.png" alt="Figure 2: Performance of Various Systems and Models for Processing Variable Output Tokens–Missing data points in M1-Pro" loading="lazy"></a><figcaption>Figure 2 · <a href="https://arxiv.org/pdf/2407.00010#page=6">原文 PDF 第 6 页</a></figcaption></figure>
+<ol>
+<li><strong>输入词元的影响：</strong> 随着输入提示变长，所有系统的吞吐量（每秒处理词元数）呈现“屋顶线模型（Roofline model）”特征。在此补充概念：屋顶线模型是一种性能评估模型，意味着系统一开始吞吐量随任务量上升，直到触及硬件算力或访存带宽的物理天花板（屋顶）后保持平移。在能效方面，M1 Pro 在处理较短输入时，每个词元的能耗极低；但随着输入变大，A100 的能效开始反超，展现出用高功耗换取极高算力从而降低单位任务能耗的优势。</li>
+<li><strong>输出词元的影响：</strong> 输出过程比输入复杂得多。这是因为生成每一个新词元都需要重新计算之前所有上下文的注意力（Attention）权重。因此，随着输出序列变长，计算量急剧增加，所有系统的吞吐量都在显著下降，每个词元的能耗也在不断上升。</li>
+</ol>
+<hr />
+<h3>6. 能源最优的混合数据中心 (Energy-Optimal Hybrid Datacenter)</h3>
+<p>基于上述单机测试结果，作者引出了本文最核心的设计：由于 M1 Pro 在处理小任务时能效极高，而 A100 在处理大任务时能效更好，如果我们构建一个混合数据中心，设定一个<strong>截断阈值（Threshold）</strong>，按任务长短进行分流，就能达到总体节能的目的。</p>
+<p>为了寻找最优阈值，作者采用了基于真实数据的仿真（Simulation）。他们假设当前任务分布与著名的微调数据集 Alpaca 中的 5.2 万个提示词的长度分布一致（原文未证实真实 LLM 用户的输入完全服从该分布，这是作者做出的<strong>关键假设与局限</strong>）。</p>
+<p><strong>输入词元阈值分析公式：</strong>
+作者沿用之前的记号，设定输入分流阈值为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mrow><mi>i</mi><mi>n</mi></mrow></msub></mrow></math></span>，并定义仿真总能耗公式：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>E</mi><mrow><mi>T</mi><mi>o</mi><mi>t</mi><mi>a</mi><mi>l</mi><mo>,</mo><mi>i</mi><mi>n</mi></mrow></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>m</mi><mo>=</mo><mn>1</mn></mrow><mrow><msub><mi>T</mi><mrow><mi>i</mi><mi>n</mi></mrow></msub></mrow></munderover><mi>m</mi><msub><mi>f</mi><mrow><mi>i</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><mi>m</mi><mo stretchy="false">)</mo><msub><mi>E</mi><mrow><mi>M</mi><mn>1</mn><mo>,</mo><mi>i</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><mi>m</mi><mo stretchy="false">)</mo><mo>+</mo><munderover><mo>∑</mo><mrow><mi>m</mi><mo>=</mo><msub><mi>T</mi><mrow><mi>i</mi><mi>n</mi></mrow></msub><mo>+</mo><mn>1</mn></mrow><mrow><mi>M</mi></mrow></munderover><mi>m</mi><msub><mi>f</mi><mrow><mi>i</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><mi>m</mi><mo stretchy="false">)</mo><msub><mi>E</mi><mrow><mi>A</mi><mn>100</mn><mo>,</mo><mi>i</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><mi>m</mi><mo stretchy="false">)</mo></mrow></math>
+</div>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>E</mi><mrow><mi>T</mi><mi>o</mi><mi>t</mi><mi>a</mi><mi>l</mi><mo>,</mo><mi>i</mi><mi>n</mi></mrow></msub></mrow></math></span>：在给定的数据集上，处理所有输入部分所消耗的总模拟能量（单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mrow><mi>i</mi><mi>n</mi></mrow></msub></mrow></math></span>：作者定义的输入词元截断阈值（标量，单位：原文未说明）。小于等于该长度的交给 M1，大于的交给 A100。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>m</mi></mrow></math></span>：输入词元长度的索引（取值范围：从 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn></mrow></math></span> 到 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi></mrow></math></span>）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi></mrow></math></span>：数据集中输入词元的最大长度（单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>f</mi><mrow><mi>i</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><mi>m</mi><mo stretchy="false">)</mo></mrow></math></span>：在 Alpaca 数据集中，长度为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>m</mi></mrow></math></span> 的输入查询出现的频率计数（标量，单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>E</mi><mrow><mi>M</mi><mn>1</mn><mo>,</mo><mi>i</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><mi>m</mi><mo stretchy="false">)</mo></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>E</mi><mrow><mi>A</mi><mn>100</mn><mo>,</mo><mi>i</mi><mi>n</mi></mrow></msub><mo stretchy="false">(</mo><mi>m</mi><mo stretchy="false">)</mo></mrow></math></span>：此前实验测量出的，针对长度 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>m</mi></mrow></math></span> 的输入，M1 Pro 和 A100 处理每个词元的平均能耗（单位：原文未说明）。</li>
+</ul>
+<p>同样地，对于输出词元的生成，作者设定了阈值 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub></mrow></math></span>，并定义了结构完全相同的输出能耗模型公式：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>E</mi><mrow><mi>T</mi><mi>o</mi><mi>t</mi><mi>a</mi><mi>l</mi><mo>,</mo><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>n</mi><mo>=</mo><mn>1</mn></mrow><mrow><msub><mi>T</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub></mrow></munderover><mi>n</mi><msub><mi>f</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo><msub><mi>E</mi><mrow><mi>M</mi><mn>1</mn><mo>,</mo><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo><mo>+</mo><munderover><mo>∑</mo><mrow><mi>n</mi><mo>=</mo><msub><mi>T</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo>+</mo><mn>1</mn></mrow><mrow><mi>N</mi></mrow></munderover><mi>n</mi><msub><mi>f</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo><msub><mi>E</mi><mrow><mi>A</mi><mn>100</mn><mo>,</mo><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo></mrow></math>
+</div>
+<p>符号沿用上式逻辑，分别代表输出总能耗 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>E</mi><mrow><mi>T</mi><mi>o</mi><mi>t</mi><mi>a</mi><mi>l</mi><mo>,</mo><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub></mrow></math></span>（单位：原文未说明）、输出阈值 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub></mrow></math></span>（单位：原文未说明）、输出长度索引 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>n</mi></mrow></math></span>（取值范围：从 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn></mrow></math></span> 到 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span>）、最大输出长度 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span>（单位：原文未说明）、输出长度频率 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>f</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo></mrow></math></span>（单位：原文未说明）以及对应的单词元能耗 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>E</mi><mrow><mi>M</mi><mn>1</mn><mo>,</mo><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>E</mi><mrow><mi>A</mi><mn>100</mn><mo>,</mo><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo stretchy="false">(</mo><mi>n</mi><mo stretchy="false">)</mo></mrow></math></span>（单位：原文未说明）。</p>
+<p>以上公式 (9) 和 (10) 中出现的下标含义如下：<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi><mi>o</mi><mi>t</mi><mi>a</mi><mi>l</mi></mrow></math></span> 表示总计；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi><mi>n</mi></mrow></math></span> 表示输入；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></math></span> 表示输出；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mn>1</mn></mrow></math></span> 表示 M1 Pro 系统；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>A</mi><mn>100</mn></mrow></math></span> 表示 A100 GPU 系统。</p>
+<p><strong>仿真结果（对应图 4 和 图 5）：</strong>
+通过代入公式计算不同阈值下的总能耗，结果呈现一条明显的 U 型曲线。作者发现，当设定 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mrow><mi>i</mi><mi>n</mi></mrow></msub><mo>=</mo><mn>32</mn></mrow></math></span> 且 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo>=</mo><mn>32</mn></mrow></math></span> 时，能耗达到最低点。与将所有任务强行分配给单一硬件（或不感知工作负载的基准线）相比，这种分流策略将总能耗降低了 7.5%。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.00010#page=6"><img src="figures/openalex-w4400446017/figure-4.png" alt="Figure 4: Performance of Hybrid Datacenter for Input" loading="lazy"></a><figcaption>Figure 4 · <a href="https://arxiv.org/pdf/2407.00010#page=6">原文 PDF 第 6 页</a></figcaption></figure><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.00010#page=6"><img src="figures/openalex-w4400446017/figure-5.png" alt="Figure 5: (b) and Fig. 2(c) assess the energy consumption and runtime" loading="lazy"></a><figcaption>Figure 5 · <a href="https://arxiv.org/pdf/2407.00010#page=6">原文 PDF 第 6 页</a></figcaption></figure>
+<p><strong>权衡与代价：</strong>
+作者在此明确指出，这种优化是牺牲了部分运行时间（Runtime）换来的。因为对于那些刚好低于阈值的小任务，M1 Pro 虽然极其省电，但其绝对处理速度仍然不如 A100。因此，整体系统的平均响应时间变长了。</p>
+<hr />
+<h3>7 &amp; 8. 相关工作与结论 (Related Work &amp; Conclusions)</h3>
+<p>在相关工作中，作者梳理了前人的研究，指出以往对深度学习数据中心调度的研究往往只关注在同构 GPU 集群内进行功耗优化，缺乏对完全异构（如 CPU/SoC 与顶级 GPU 混搭）节点在特定 LLM 工作负载下的真实能耗分析。</p>
+<p><strong>贯穿全文的主线与局限总结：</strong>
+本文的研究主线非常清晰：由于 LLM 推理极度耗电且任务长度不一（遇到问题） -&gt; 作者测量了从轻量级 SoC 到顶级 GPU 的真实能耗表现，发现它们在不同任务规模下各有优劣（获取数据支撑） -&gt; 作者提出根据“输入/输出词元数量”这一关键指标进行请求路由分发的调度框架（提出策略） -&gt; 通过数据集仿真证明该策略能降低 7.5% 的能耗（验证结果）。</p>
+<p><strong>关键局限性提醒：</strong></p>
+<ol>
+<li>结论高度依赖于工作负载的分布特征。如果实际业务中全是超长文本对话，M1 类的低功耗节点将无法发挥作用。</li>
+<li>调度策略属于延迟-能耗折中方案（Quality of Service 权衡）。该混合架构非常适合非实时、对延迟不敏感的离线批处理任务（如夜间数据分析），但不一定适用对首字节延迟（TTFT）要求极高的实时对话系统。</li>
+<li>文中对于苹果芯片推理能耗的分离采用的是基于软件因子的估算（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>α</mi><mi>i</mi></msub></mrow></math></span>），并非物理电路级的绝对隔离测量，这在一定程度上反映了系统级能耗测量的普遍妥协。</li>
+</ol>
+</div></td></tr></table></body></html>
