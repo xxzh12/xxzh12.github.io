@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3D Integrated Circuit Cooling with Microfluidics · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>3D Integrated Circuit Cooling with Microfluidics</h1><p class="paper-note">Shaoxi Wang, Yue Yin, Chenxia Hu, Pouya Rezai · Micromachines · 2018 · <a href="https://doi.org/10.3390/mi9060287">原文</a> · <a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>这是一篇对 2018 年发表在《Micromachines》期刊上的综述文章《3D Integrated Circuit Cooling with Microfluidics》的详细解读。该文系统回顾了将微流控（Microfluidics）技术应用于三维集成电路（3D ICs）散热领域的研究进展。</p>
+<p>以下将按论文自身的逻辑章节，为您逐段进行详细解析。</p>
+<hr />
+<h3>1. 引言 (Introduction)</h3>
+<p><strong>问题背景与核心概念：</strong>
+随着集成电路（IC）的特征尺寸不断向传统微纳制造的极限逼近，3D IC 技术被认为是一种极具前景的延续<strong>摩尔定律（Moore's law）</strong>（原文未定义/未说明具体内容）的方法。所谓 3D IC，是指将多个计算核心、存储器和逻辑单元在垂直方向上堆叠，并在单个单元内互连。这种下一代技术能够缓解纳米尺度下存在的互连瓶颈，提高时钟速度，降低传输损耗、功耗和占地面积。</p>
+<p>然而，3D ICs 带来了一个需要克服的严峻挑战：<strong>过热（Overheating）</strong>。由于热通量增加和热阻升高，这种 3D IC 技术可能导致堆叠结构热点的异化、局部热通量的增加以及全局芯片温度的上升，从而降低芯片性能和可靠性。互连线和晶体管的可靠性、性能和功耗严重依赖于工作温度。根据国际半导体技术蓝图（ITRS）在文中的预测（如<strong>图 1</strong> 所示），到 2018 年，高性能应用的单封装功率密度将增加至 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mn>10</mn><mn>6</mn></msup><msup><mtext> W/cm</mtext><mn>2</mn></msup></mrow></math></span>（此处 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mn>10</mn><mn>6</mn></msup></mrow></math></span> 为标量数值，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mtext>W/cm</mtext><mn>2</mn></msup></mrow></math></span> 为功率密度单位，原文未说明 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mtext>W</mtext></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mtext>cm</mtext></mrow></math></span> 的具体全称）。随着更多芯片集成到一个封装中，功率密度大大增加。</p><figure class="paper-figure"><a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=2"><img src="figures/openalex-w2805887040/figure-1.png" alt="Figure 1: The power density trend for a single package" loading="lazy"></a><figcaption>Figure 1 · <a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=2">原文 PDF 第 2 页</a></figcaption></figure>
+<p>传统的被动散热（如导热膏、金属线、通孔、翅片散热器、通风槽、涂层、热管和热虹吸管）和常规主动散热（如风扇、喷嘴、泵送回路、热交换器、冷板和制冷器）由于尺寸不够小或冷却效率不足，无法嵌入到 3D IC 结构中，也仍然无法应对 IC 不断变化的热分布。</p>
+<p><strong>微流控冷却的引入：</strong>
+为了解决这一问题，**微流控（Microfluidics）<strong>技术被引入。微流控是一门使用尺寸在几十到几百微米的通道或平面平台来处理或操纵微量流体的科学技术。美国国防高级研究计划局（DARPA）自 2012 年起启动了</strong>芯片内/芯片间增强冷却（ICECool）**热封装项目，旨在解决冷却限制并消除重大障碍，以延续电子元件和系统中的摩尔定律。该项目采用微流控冷却作为激进的热管理技术，直接冷却芯片、基板和/或封装中的发热部位。本文即是对该项目推动下产生的 85 篇相关文献的归纳总结。</p>
+<h3>2. 微流控冷却的结构与制造 (Microfluidic Cooling Structure and Manufacture)</h3>
+<p><strong>不同层级的冷却结构：</strong>
+在 ICECool 项目中，致力于在 3D ICs 中创建许多具有高导热性的微/纳微流控通道和结构，以及热电材料，以将片上热点连接到微流控冷却的微通道。提出的芯片内/芯片间增强冷却方法需要与 3D 芯片堆叠中同构和异构集成的材料、制造程序和热管理需求兼容。概念性的 ICECool 结构如<strong>图 2</strong> 所示。</p><figure class="paper-figure"><a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=3"><img src="figures/openalex-w2805887040/figure-2.png" alt="Figure 2: A cross-Sectional conceptual schematic of an ICECool device" loading="lazy"></a><figcaption>Figure 2 · <a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=3">原文 PDF 第 3 页</a></figcaption></figure>
+<p>作者指出，微流控结构主要分为两种：微孔和微通道直接在芯片内部制造（Intra-chips）；芯片间方法利用微间隙作为三维堆叠中芯片之间的冷却通道（Interchip）。</p>
+<p>在此基础上，研究人员开发了多种变体。例如，Yue Zhang 等人提出了<strong>特定层微流控冷却（Tier-specific microfluidic cooling）<strong>技术，并在 3D 堆叠中进行了实验验证（如</strong>图 3</strong> 所示）。与传统的微流控冷却相比，当指定工作温度时，特定层冷却方法可将泵送功率降低 37.5%（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>37.5</mn></mrow></math></span> 为标量数值，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>%</mi></mrow></math></span> 为百分比单位），防止过度冷却（overcooling）。另一种变体（如<strong>图 4</strong> 所示）是每个芯片拥有独立的流体入口和出口，根据个体需求独立修改流向和流速，从而实现每层的独立冷却，可用于不同的温度分布和速度。</p><figure class="paper-figure"><a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=3"><img src="figures/openalex-w2805887040/figure-3.png" alt="Figure 3: " loading="lazy"></a><figcaption>Figure 3 · <a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=3">原文 PDF 第 3 页</a></figcaption></figure><figure class="paper-figure"><a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=4"><img src="figures/openalex-w2805887040/figure-4.png" alt="Figure 4: A 3D system with independent microfluidic cooling. Reproduced with permission from [21]" loading="lazy"></a><figcaption>Figure 4 · <a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=4">原文 PDF 第 4 页</a></figcaption></figure>
+<p><strong>制造工艺的具体步骤：</strong>
+嵌入 3D ICs 的<strong>硅通孔（TSVs）<strong>需要更复杂的微制造工艺。典型工艺如</strong>图 5</strong> 所示：</p><figure class="paper-figure"><a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=4"><img src="figures/openalex-w2805887040/figure-5.png" alt="Figure 5: Schematic of the overall fabrication process" loading="lazy"></a><figcaption>Figure 5 · <a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=4">原文 PDF 第 4 页</a></figcaption></figure>
+<ol>
+<li>首先沉积二氧化硅，随后沉积金属。</li>
+<li>选择一层薄铬作为刻蚀掩膜。</li>
+<li>利用铬掩膜刻蚀二氧化硅层，并使用 CR-7S 铬刻蚀剂去除剩余的铬。</li>
+<li>利用高深宽比（High-aspect-ratio）的 Bosch 工艺（原文未定义/未说明具体含义）在硅晶圆上刻蚀出通孔。</li>
+<li>通过湿法氧化（Wet oxidation）使通孔与硅衬底隔离。</li>
+<li>在晶圆背面使用电子束蒸发器沉积钛和铜晶种层，并需要通过化学机械抛光去除覆盖层。</li>
+<li>最终获得微针翅（Micropin-fin）散热器结构，并将载玻片组装到带有流体进出口的测试平台中以进行流体输送。</li>
+</ol>
+<h3>3. 3D ICs 中微流控冷却的协同设计 (Co-Design of Microfluidic Cooling in 3D ICs)</h3>
+<p><strong>协同设计（Co-design）背景与必要性：</strong>
+一种新策略整合了系统的计算、电气、物理、热和可靠性层面。IC 这些不同层面的统一被称为协同设计。考虑到缺乏对跨域交互及其对架构设计空间可行域影响的理解，各个层面的独立优化和设计会导致次优设计（sub-optimal designs）。因此，协同设计能够实现高效设计和高性能配置的优化。在带有高效微流控冷却的 3D IC 中，层间与冷却结构的耦合以及组件之间更高程度的连通性，加剧了物理设计参数、架构参数和众多关注指标（如性能、热点分布、功耗和可靠性）之间的相互依赖性。</p>
+<p><strong>跨域交互与协同设计：</strong>
+文章列举了多个体现这种跨层联系的代表性研究。在这些研究中，不同层面的参数相互影响（原文未说明具体的建模假设和信息损失）：</p>
+<ul>
+<li><strong>指令集级模拟与物理热模型的闭环：</strong> Zhimin Wan 等人研究了 3D 堆叠 IC 中多核架构和微流控冷却的协同设计。他们将一个 16 核 x86 多核微架构模拟器与物理功率模型相结合。模拟器执行基准测试程序，生成驱动热分析的“功率轨迹（Power traces）”（传递的量）。在使用紧凑型热模型后，研究了液体冷却下的热特性，并比较了四种替代封装组织。在给定泵送功率下，通过两个微针翅增强的微间隙和两层（高功耗层在顶部）达到了最大的整体温度降低（目标）。最后，优化了微针翅参数（高度、直径、纵向和横向间距），从而在 energy instruction 方面取得了显著改善，并且泄漏功耗以及高度、直径、纵向和横向间距显著降低。</li>
+<li><strong>混合冷却架构的权衡：</strong> Bing Shi 等人研究了一种结合了热 TSV 与微通道液体冷却结构的混合 3D-IC 冷却方法。热 TSV 充当热移除剂以及通向微通道结构的有利热传导路径。实验结果表明，提出的混合冷却方法提供了比单独热 TSV 更多的冷却能力，但与纯微通道冷却相比，所需冷却功耗减少了 56%。</li>
+<li><strong>多域联合仿真框架：</strong> Caleb Serafy 提出了一种针对具有微流控和空气冷却解决方案的 3D 中央处理器（CPU）架构的多域协同优化和协同仿真方案（目标），展示了协同设计方案中设计空间建模和探索的范例。Yue Zhang 等人研究了层间微流控散热器及其实验测试平台的电气和热协同设计，并分析了热移除能力与相关的 TSV 寄生参数之间的设计权衡（design tradeoffs）。</li>
+</ul>
+<h3>4. 微流控冷却对硅通孔 (TSV) 的影响 (Influence of Microfluidic Cooling on TSVs)</h3>
+<p><strong>问题产生的原因：</strong>
+为了将微流控冷却结构嵌入 3D 堆叠中，芯片的厚度或芯片之间的间隙已被修改。冷却液和结构将导致包括高频在内的电气特性的变化。需要研究微流控冷却对 3D ICs 中 TSV 电气性能的影响。</p>
+<p><strong>电气与信号完整性的具体影响：</strong></p>
+<ul>
+<li><strong>有益影响（基于热降低）：</strong> 实验结果表明，因为高冷却能力（high cooling capability），带有微流控冷却的互补金属氧化物半导体（CMOS）芯片的漏电流降低了 66.2%。</li>
+<li><strong>有害/复杂影响（基于介电环境改变）：</strong> 接地和信号互连线之间的冷却液会带来信号传播、信号完整性、损耗和串扰问题。Hanju Oh 等人的研究（引用<strong>图 6</strong> 和<strong>图 7</strong>）表明，在这样的冷却系统中，通过 TSV 传播的信号将部分遇到穿过硅和去离子（DI）水的电容和电导。与硅的介电常数不同，去离子水的介电常数随频率显著变化（原文未说明具体的介电常数值）。他们描述了微针翅散热器内高深宽比 TSV 的制造和电气表征，并给出了硅衬底中 TSV 和充满蒸馏水的微针翅散热器中 TSV 的等效电路模型。<figure class="paper-figure"><a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=6"><img src="figures/openalex-w2805887040/figure-6.png" alt="Figure 6: Ground–signal–ground through" loading="lazy"></a><figcaption>Figure 6 · <a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=6">原文 PDF 第 6 页</a></figcaption></figure><figure class="paper-figure"><a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=6"><img src="figures/openalex-w2805887040/figure-7.png" alt="Figure 7: Equivalent circuit models for (a) conventional TSVs and (b) TSVs with distilled water" loading="lazy"></a><figcaption>Figure 7 · <a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=6">原文 PDF 第 6 页</a></figcaption></figure></li>
+<li><strong>系统级建模器：</strong> Hanhua Qian 等人提出了一种用于散热器冷却和微流控冷却 3D ICs 的精确稳态热模拟器。通过计算插入 TSV 时固体网格单元的各向异性等效热导率，确定了细粒度下 TSV 的热效应。</li>
+</ul>
+<h3>5. 微流控冷却在特定应用中的应用 (Microfluidic Cooling Application in Specific Application)</h3>
+<p>文章探讨了微流控冷却在不同芯片类型中的实际效果：</p>
+<ul>
+<li><strong>3D 处理器与 CPUs (中央处理器)：</strong> Caleb Serafy 等人探索了微流控冷却在 3D 处理器堆叠中的应用。结果显示，与没有微流控冷却的 3D 堆叠内存处理器相比，平均性能提高了 2.4 倍（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.4</mn><mo>×</mo></mrow></math></span>，其中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.4</mn></mrow></math></span> 为标量数值，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>×</mo></mrow></math></span> 为倍数乘法算子，无量纲）。在针对 3D CPU 的研究中，微流控冷却被证明是释放 3D IC 真正潜力的必要激进冷却方案。通过引入微流控冷却和平面布局协同优化（Floor plan co-optimization），性能实现了 2.3 倍（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2.3</mn><mo>×</mo></mrow></math></span>）的提升。文章引用了<strong>图 8</strong> 的分析流程图，展示了寻找受限于物理约束的最优设计选择的方法。在该跨层接口中，传递的量包括架构参数（Architecture Parameters）输入生成性能统计（Performance Stats），进而生成动态功耗（Dynamic Power）和功耗与面积估计（Power and Area Estimates）；TSV 密度要求（TSV Density Requirement）输入生成 TSV 密度模型（TSV Density Model）；功耗与面积估计和 TSV 密度模型输入生成功率图（Power Map）；功率图输入生成峰值温度（Peak Temp）和热图（Thermal Map）；热图输入生成泄漏分布（Leakage Profile）和泄漏功耗（Leakage Power）。原文未说明具体的建模假设和信息损失。<figure class="paper-figure"><a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=7"><img src="figures/openalex-w2805887040/figure-8.png" alt="Figure 8: Flowchart" loading="lazy"></a><figcaption>Figure 8 · <a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=7">原文 PDF 第 7 页</a></figcaption></figure></li>
+<li><strong>3D FPGAs (现场可编程逻辑门阵列)：</strong> Zhiyuan Yang 等人研究了流体通道密度对 FPGA 性能和冷却的影响。在热-电约束（thermo-electrical constraints）下识别每个基准测试的最优设计，相比于使用固定热沉的原始 3D FPGA 设计，该方案可将工作频率提高达 124.0%，能效提高 80.3%。</li>
+<li><strong>高性能计算与 SoCs (系统级芯片)：</strong> Li Zheng 等人提出了一种用于高性能计算系统的微流控冷却硅中介层（silicon interposer）平台，逻辑堆栈嵌在每层的微流控散热器中，内存堆栈并排组装在硅中介层上，测得硅中介层温度较风冷降低了 40.1%。对于移动 SoC，Wen Yueh 等人设计了用于流体冷却的针翅中介层并与商业 SoC 集成，系统集成了由 SoC 本身控制的低功耗压电泵，测量结果表明封装内流体冷却提高了 SoC 的能量效率并减小了设计占地面积。</li>
+<li><strong>射频化合物半导体 (GaN)：</strong> 在 X 波段氮化镓 (GaN) 器件和放大器中，微流控冷却技术使 GaN 单片微波 IC 放大器的增益提高超过 4 dB（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4</mn></mrow></math></span> 为标量数值，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mtext>dB</mtext></mrow></math></span> 为分贝单位），最大输出功率提高超过 8 dB，功率效率提高 3% 到 5%。</li>
+</ul>
+<h3>6. 热模型、特性和流体传输 (Thermal Models, Characteristics, and Transmissions in Microfluidic Cooling)</h3>
+<p><strong>热模型构建的目的：</strong>
+为了在 3D IC 的热管理中实现准确性和效率，重要问题之一是构建包含所有相关参数的热模型（Thermal models）。</p>
+<p><strong>模型研究进展：</strong></p>
+<ul>
+<li><strong>理论预测与实验验证的吻合：</strong> Outmane Lemtiri Chlieh 等人建立了一个热模型，预测在微流控通道内有移动冷却液的情况下有机散热器的整体热阻，具有不同额定功率和尺寸的电阻器的温度测量结果与模型预测一致。</li>
+<li><strong>通道结构的流体力学优化：</strong> Guilian Wang 等人利用表面微机械加工工艺在微流控通道的侧壁制造了矩形、三角形和半圆形肋（Ribs）。这些结构作为<strong>湍流器（Turbulators）</strong>（原文未定义/未说明具体机制）来提高微流控散热器的传热速率。结果表明，利用微肋提供了更好的传热速率，但也增加了微通道的<strong>压降惩罚（Pressure drop penalty）</strong>（原文未说明具体含义）。</li>
+</ul>
+<h3>7. 加热不均匀与热点问题 (Non-Uniform Heating and Hotspots)</h3>
+<p><strong>热点问题的背景：</strong>
+3D ICs 中的热点是由于芯片运行期间底层 IC 的非均匀利用引起的。热点区域和芯片的背景区域导致整个芯片出现过大的温度梯度，这会对芯片性能和可靠性产生不利影响，因为大的温度梯度会增加热应力。为了解决热点冷却问题，提出了许多新技术，可总结为<strong>表 1</strong> 所示的五类。</p><figure class="paper-figure"><a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=9"><img src="figures/openalex-w2805887040/table-1.png" alt="Table 1: Summary of the literature review for non-uniform heating and hotspots" loading="lazy"></a><figcaption>Table 1 · <a href="https://www.mdpi.com/2072-666X/9/6/287/pdf?version=1528342443#page=9">原文 PDF 第 9 页</a></figcaption></figure>
+<p><strong>文献中解决热点问题的方法（总结于 表 1）：</strong></p>
+<ol>
+<li><strong>非均匀加热和热点的分析：</strong> 例如在微流控应用中常见的低雷诺数环境（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>e</mi><mo>&lt;</mo><mn>500</mn></mrow></math></span>，其中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>R</mi><mi>e</mi></mrow></math></span> 为雷诺数，原文未说明单位，原文未定义/未说明具体含义；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&lt;</mo></mrow></math></span> 为小于算子；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>500</mn></mrow></math></span> 为标量数值）下，在单个通道内提供适合密集封装电路中目标热点的低轮廓射流冲击（Jet impingement）。</li>
+<li><strong>使用数字微流控解决非均匀加热：</strong> 这是一个核心的新兴设计选择。它基于**介电电润湿（Electrowetting on Dielectric）**原理（原文未定义/未说明具体原理）。通过电压控制实现离散亚微升液滴的高速电润湿操纵，实现自适应冷却。</li>
+<li><strong>改变通道聚类以应对非均匀加热：</strong> H.H. Qian 等人使用高效的聚类算法指导微通道划分为集群，并将冷却资源分配给每个集群，以最小的总流速实现有效的微流控冷却。</li>
+<li><strong>使用新型结构应对非均匀加热：</strong> 如 L. Zheng 设计的环形流体微凸块（Fluidic microbumps），以实现高带宽管脚到管脚信号传输、嵌入式微流控冷却和电力传输。H. Azarkish 等人设计了温度调节微阀（Microvalves）用于微电子系统的节能流体冷却。</li>
+<li><strong>非均匀加热解决方法的测试和协议：</strong> 创建了带有嵌入式微针翅散热器的 3D ICs 新型热测试平台，并展示了用于集成片上通信和冷却的微流控系统协议。</li>
+</ol>
+<h3>8. 结论 (Conclusions)</h3>
+<p><strong>全文总结与未来展望：</strong>
+上述讨论涵盖了所有可用的在 3D ICs 中使用微流控冷却的出版物。大多数研究工作发表在过去五年中，重点关注微流控冷却的基本原理、模型和应用实例。基于所有分析，提出了几项未来工作建议：</p>
+<ol>
+<li><strong>热点的精确评估：</strong> 确定如何实现非均匀加热对于将微流控冷却应用于 3D ICs 非常重要，但目前还没有确切的方法和模型可用于评估热点。</li>
+<li><strong>数字微流控的电压约束：</strong> 数字微流控在冷却过程中是一种有效方法，但当这些冷却结构嵌入 3D 堆叠 IC 时，需要降低驱动电压。</li>
+<li><strong>系统工程：</strong> 在 3D ICs 中使用微流控冷却时，在制造、测试和设计方法方面需要取得更系统的成果。</li>
+</ol>
+</div></td></tr></table></body></html>
