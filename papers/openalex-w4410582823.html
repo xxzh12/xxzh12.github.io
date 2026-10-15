@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AIRCHITECT v2: Learning the Hardware Accelerator Design Space Through Unified Representations · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>AIRCHITECT v2: Learning the Hardware Accelerator Design Space Through Unified Representations</h1><p class="paper-note">Jamin Seo, Akshat Ramachandran, Yu-Chuan Chuang, Anirudh Itagi, Tushar Krishna · 2025 Design, Automation &amp;amp; Test in Europe Conference (DATE) · 2025 · <a href="https://doi.org/10.23919/date64628.2025.10993035">原文</a> · <a href="https://arxiv.org/pdf/2501.09954">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>本文介绍的是发表于 2025 年的一篇关于计算机体系结构与硬件加速器设计的论文《AIRCHITECT V2: Learning the Hardware Accelerator Design Space through Unified Representations》。</p>
+<h3>全文核心主线</h3>
+<p><strong>最初面临的问题</strong>：随着深度神经网络（DNN）和大型语言模型（LLM）的复杂性呈指数级增长，为其设计定制化硬件加速器的“设计空间探索”（Design Space Exploration, DSE）变得极其困难。不同的硬件资源配置（如计算单元数量、缓存大小）和映射策略会产生巨大的性能差异。传统的基于搜索的启发式算法耗时极长且容易陷入局部最优；而初期的基于机器学习的方法（如 AIrchitect v1）直接将探索简化为纯分类问题，导致模型泛化能力差、在复杂和数据分布极不均匀的设计空间中容易过拟合。
+<strong>作者的解决方案</strong>：作者提出了 AIrchitect v2，这是一个基于 Transformer 编码器-解码器架构的机器学习框架。它引入了两个核心技术：一是利用**对比学习（Contrastive Learning）<strong>将非均匀且“长尾”分布的初始设计空间，映射到一个平滑且均匀的连续向量空间（特征嵌入空间）；二是提出了一种名为</strong>统一序数向量（Unified Ordinal Vectors, UOV）**的全新数据表示方法，巧妙地将粗粒度的“分类”和细粒度的“回归”结合在一起，以更小的模型体积实现了对庞大硬件配置空间的准确预测。
+<strong>最终得到的结果</strong>：该方法在测试集上的预测准确率达到了 91.17%，比现有技术平均高出 15%；在未见过的真实大模型（如 Llama 2/3）的实际硬件部署评估中，由该模型预测出的硬件架构，其推理延迟性能比基线方法提高了约 1.7 倍。
+<strong>局限与适用范围</strong>：本文的硬件性能评估严重依赖于 MAESTRO 分析模型。MAESTRO 是一个理论性能估算器，而非综合布线（EDA）级别的物理仿真器。这意味着本文所谓的“最优延迟”是架构层的理论周期数估算，并未实际反馈布局布线、物理时序、热效应或真实功耗等底层物理约束。</p>
+<hr />
+<h3>系统背景与跨层关系补充</h3>
+<p>为了理解本文，需要先建立关于<strong>硬件加速器与深度学习编译映射</strong>的基础全貌。
+<strong>背景补充</strong>：</p>
+<ol>
+<li><strong>研究对象与系统层级</strong>：本文讨论的是架构层面的软硬协同优化。当一个深度学习模型（由多层张量计算，如矩阵乘法构成）在一个硬件加速器上执行时，性能取决于两个因素：<strong>硬件配置</strong>和<strong>数据流（Dataflow）</strong>。</li>
+<li><strong>硬件组件</strong>：加速器主要由处理单元（Processing Elements, PEs，负责实际的乘加运算）和存储层级（如本地寄存器、L1 缓存、L2 全局缓存）组成。</li>
+<li><strong>架构与 EDA 的跨层联系</strong>：在本文中，架构层的输入是工作负载的形状（矩阵维度），输出是建议的硬件规模（PE 数量、L2 缓存大小）。性能指标（如执行延迟，以时钟周期计）由 MAESTRO 分析器通过数学公式推算得出。这里并未涉及传统的物理 EDA 流程，关于具体的物理约束（如放置、布线、时序闭合等）以及增加 PE 带来的芯片面积扩大或布线拥塞导致的频率下降等物理代价，原文未定义/未说明。跨层接口仅仅停留在将算法张量维度作为输入，将架构级的计算和存储资源数量作为约束来计算理论延迟，存在底层物理信息的损失。</li>
+</ol>
+<hr />
+<h3>I. Introduction (引言) 与 II. Background and Motivation (背景与动机)</h3>
+<h4>问题背景</h4>
+<p>设计空间探索（DSE）的目的是在给定的工作负载下，找到延迟最低或能耗最小的硬件资源配置。过去，这依赖于人类专家的经验。后来出现了基于搜索的自动化方法（如强化学习、遗传算法、贝叶斯优化），这类方法本质上是在巨大的参数空间中不断试错，耗时巨大。</p>
+<p>为了实现“恒定时间”（一次性前向传播即可出结果）的预测，先前的研究提出了基于监督学习的 AIrchitect v1。它将 DSE 抽象为一个<strong>纯分类问题</strong>：预先定义好有限种硬件配置（标签），模型通过多层感知机（MLP）输出不同标签的概率。</p>
+<h4>本文面临的三大挑战与动机</h4>
+<p>作者分析了 AIrchitect v1 及其他机器学习方法失效的深层原因，这也是本文提出的动机：</p>
+<ol>
+<li><strong>非均匀的性能景观（Non-Uniform Performance Landscape）</strong>：如图 3(a) 所示，横纵坐标是经过主成分分析（PCA）降维后的输入特征，竖轴是归一化后的执行延迟（网络预测的目标值）。这个三维曲面非常崎岖（非凸优化问题）。输入特征的微小变化可能导致最优硬件配置的剧烈跳变。模型如果在这种原始空间中直接学习，极易陷入局部最优并发生过拟合。<figure class="paper-figure"><a href="https://arxiv.org/pdf/2501.09954#page=2"><img src="figures/openalex-w4410582823/figure-3.png" alt="Figure 3: (b), plots the number of data samples for each" loading="lazy"></a><figcaption>Figure 3 · <a href="https://arxiv.org/pdf/2501.09954#page=2">原文 PDF 第 2 页</a></figcaption></figure></li>
+<li><strong>长尾的数据分布（Long-tailed Data Distribution）</strong>：如图 3(b) 所示，DSE 数据集中存在严重的不平衡。少数几种最优的硬件配置被绝大多数输入工作负载所共享（头部），而大量其他的硬件配置只有极少数工作负载适用（长尾）。常规模型会被头部数据主导，无法泛化到长尾场景。</li>
+<li><strong>分类与回归的困境</strong>：
+<ul>
+<li><strong>分类（Classification）</strong>：如 v1，将配置限定在固定集合内。这简化了学习，但严重限制了可扩展性（如果硬件参数范围变大，类别数会爆炸，模型体积也随之爆炸）。</li>
+<li><strong>回归（Regression）</strong>：直接预测连续的硬件参数数值。这虽然易于扩展，但在如此庞大复杂的非约束空间中，模型极难收敛，预测精度很低。</li>
+</ul>
+</li>
+</ol>
+<p><strong>作者的应对策略</strong>：引入<strong>对比学习</strong>来解决前两个问题（平滑空间、对抗数据不平衡）；引入**统一序数向量（UOV）**来解决第三个问题（兼顾分类的容易约束和回归的可扩展性）。对比学习最初用于计算机视觉中，其核心机制是让属于同一类的样本在数学向量空间（嵌入空间）中互相靠近，不同类的样本互相远离。本文将其引入硬件参数设计空间。</p>
+<hr />
+<h3>III. AIrchitect v2 (方法与模型架构)</h3>
+<h4>A. DSE 问题构建 (Problem Formulation)</h4>
+<p>作者定义了本文要探索的 DSE 任务：在由 MAESTRO 建模的硬件加速器上进行资源分配。
+结合原文表 1（Table I），该任务的<strong>输入特征</strong>包含 4 个维度：矩阵乘法（GEMM）的张量维度标量 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo>,</mo><mi>N</mi><mo>,</mo><mi>K</mi></mrow></math></span>（单位：原文未说明），以及数据流策略（Dataflow，是一个离散的分类变量，作者将其限定为权重驻留、输出驻留、行驻留三种作者设定的软件选择）。
+任务的**输出（预测目标）**包含 2 个维度的硬件配置：最优的处理单元数量（PE，整数数值，单位：原文未说明）和 L2 缓存大小（整数数值，单位：原文未说明）。其中 L1 缓存大小被作者作为常量固定（这是基于先前工作 ConfuciuX 的作者设定，并非硬件规范强制）。
+这个输入输出组合构成了规模达 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>O</mi><mo stretchy="false">(</mo><msup><mn>10</mn><mn>9</mn></msup><mo stretchy="false">)</mo></mrow></math></span> 的巨大设计空间。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2501.09954#page=3"><img src="figures/openalex-w4410582823/table-I.png" alt="Table I: Input and output formulations for MAESTRO [19]-" loading="lazy"></a><figcaption>Table I · <a href="https://arxiv.org/pdf/2501.09954#page=3">原文 PDF 第 3 页</a></figcaption></figure>
+<h4>B. 模型架构概览</h4>
+<p>AIrchitect v2 采用了类似机器翻译中常用的 Transformer 编码器-解码器架构。</p>
+<ul>
+<li><strong>编码器（Encoder）</strong>：接收工作负载和映射特征输入，负责将其压缩、转化为一个平滑、均匀的潜在向量（特征嵌入空间）。</li>
+<li><strong>解码器（Decoder）</strong>：接收编码器输出的潜在向量，并通过两个独立的<strong>UOV 预测头（UOV heads）</strong>（简单的全连接层网络），分别输出 PE 数量和 L2 缓存大小。
+模型的训练被严格划分为两个独立的阶段。</li>
+</ul>
+<h4>C. 第一阶段：编码器训练 (Stage 1 Training)</h4>
+<p>此阶段的目的是让编码器学会构建一个良好的“特征嵌入空间”。为了克服非均匀景观和长尾分布，作者使用了一个组合损失函数，由对比学习损失和性能预测损失组成。</p>
+<p>首先定义第一次出现的对比损失公式：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msup><mi>ℒ</mi><mi>C</mi></msup><mo>=</mo><mo>−</mo><mi>log</mi><mfrac><mrow><msub><mo>∑</mo><mrow><msup><mi>p</mi><mo>+</mo></msup></mrow></msub><mi>exp</mi><mo stretchy="false">(</mo><msup><mi>λ</mi><mi>p</mi></msup><mo>·</mo><msup><mi>λ</mi><mrow><mi>p</mi><mo>+</mo></mrow></msup><mo>/</mo><mi>τ</mi><mo stretchy="false">)</mo></mrow><mrow><msub><mo>∑</mo><mrow><msup><mi>p</mi><mo>+</mo></msup></mrow></msub><mi>exp</mi><mo stretchy="false">(</mo><msup><mi>λ</mi><mi>p</mi></msup><mo>·</mo><msup><mi>λ</mi><mrow><mi>p</mi><mo>+</mo></mrow></msup><mo>/</mo><mi>τ</mi><mo stretchy="false">)</mo><mo>+</mo><msub><mo>∑</mo><mrow><msup><mi>p</mi><mo>−</mo></msup></mrow></msub><mi>exp</mi><mo stretchy="false">(</mo><msup><mi>λ</mi><mi>p</mi></msup><mo>·</mo><msup><mi>λ</mi><mrow><mi>p</mi><mo>−</mo></mrow></msup><mo>/</mo><mi>τ</mi><mo stretchy="false">)</mo></mrow></mfrac></mrow></math>
+</div>
+<p><strong>公式符号逐一解释：</strong></p>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>ℒ</mi><mi>C</mi></msup></mrow></math></span>：表示对比损失项，是一个标量值，单位：原文未说明，由计算得出，优化目标是使其最小化。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>log</mi></mrow></math></span>：自然对数函数。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mo>∑</mo><mrow><msup><mi>p</mi><mo>+</mo></msup></mrow></msub></mrow></math></span>：一个求和算子，表示遍历当前数据批次（batch）中所有的正样本（Positive samples）索引 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>p</mi><mo>+</mo></msup></mrow></math></span>（单位：原文未说明）。这里“正样本”被作者定义为：与当前锚点样本属于同一个最优硬件配置区间（UOV 桶，后文定义）的输入样本。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>exp</mi></mrow></math></span>：指数函数。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>λ</mi><mi>p</mi></msup></mrow></math></span>：表示锚点（Anchor）样本经过编码器后输出的特征嵌入表示，其具体维度与数据类型原文未定义/未说明，单位：原文未说明。锚点是指当前正在计算损失的那个基准输入数据。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>·</mo></mrow></math></span>：向量的点积操作。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>λ</mi><mrow><mi>p</mi><mo>+</mo></mrow></msup></mrow></math></span>：表示正样本经过编码器输出的特征嵌入表示，其具体维度与数据类型原文未定义/未说明，单位：原文未说明。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>τ</mi></mrow></math></span>：温度超参数（Temperature hyperparameter），是一个标量，单位：原文未说明。作者根据经验将其设为固定的作者设定值 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.4</mn></mrow></math></span>，用于控制概率分布的平滑程度。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mo>∑</mo><mrow><msup><mi>p</mi><mo>−</mo></msup></mrow></msub></mrow></math></span>：求和算子，遍历当前批次中所有的负样本（Negative samples）索引 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>p</mi><mo>−</mo></msup></mrow></math></span>（单位：原文未说明）。负样本被定义为：与锚点样本属于不同最优硬件配置区间的输入样本。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>λ</mi><mrow><mi>p</mi><mo>−</mo></mrow></msup></mrow></math></span>：表示负样本经过编码器输出的特征嵌入表示，其具体维度与数据类型原文未定义/未说明，单位：原文未说明。</li>
+</ul>
+<p><strong>逻辑推理</strong>：这个公式（基于 infoNCE）的作用是最大化锚点与其正样本在多维空间中的余弦相似度（分子），同时最小化它与所有负样本的相似度（分母中的第二项）。这强制编码器在数学空间中把对应相同硬件配置的输入特征“拉近”，把对应不同硬件配置的“推开”。</p>
+<p>然而，纯粹的对比学习只关心“同类聚集”，并不关心它们在物理意义上代表的性能（如具体耗时多少周期）。因此，作者引入了一个<strong>性能预测器（Performance Predictor）</strong>，采用绝对误差（L1-based）计算性能预测损失 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>ℒ</mi><mrow><mi>p</mi><mi>e</mi><mi>r</mi><mi>f</mi></mrow></msup></mrow></math></span>（标量，单位：原文未说明，原文未给出展开公式，其物理含义是模型预测的理论延迟与真实理论延迟之间的误差标量）。
+第一阶段的最终优化目标是两者的总和：<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>ℒ</mi><mrow><mi>s</mi><mi>t</mi><mi>a</mi><mi>g</mi><mi>e</mi><mn>1</mn></mrow></msup><mo>=</mo><msup><mi>ℒ</mi><mi>C</mi></msup><mo>+</mo><msup><mi>ℒ</mi><mrow><mi>p</mi><mi>e</mi><mi>r</mi><mi>f</mi></mrow></msup></mrow></math></span>（标量，单位：原文未说明）。</p>
+<h4>D. 第二阶段：解码器训练与 UOV 表示 (Stage 2 &amp; UOV)</h4>
+<p>在阶段 2 中，编码器的权重被固定（不进行梯度反向传播），专门训练解码器去读取那个已经变得平滑的嵌入向量，并输出最终的硬件配置。这里引出了本文最核心的创新：<strong>统一序数向量（Unified Ordinal Vectors, UOV）</strong>。</p>
+<p><strong>为什么要发明 UOV？</strong>
+传统的分类预测输出一个由 0 和 1 组成的独热向量（One-hot vector，如 <code>[0, 0, 1, 0]</code>），它只能表示“选择了哪个确切的类别”。UOV 通过“分桶（Bucketization）”将巨大的连续设计空间切分为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span> 个区间。UOV 不仅能指示数值落在哪一个桶里（类似分类），还能通过桶内的小数部分指示具体偏离了桶边界多远（类似回归）。</p>
+<p><strong>UOV 的数学定义</strong>：
+作者采用空间递增离散化方法，将硬件参数空间切分为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span> 个桶，由边界阈值集合 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Λ</mi><mo>=</mo><mo stretchy="false">{</mo><msub><mi>r</mi><mn>0</mn></msub><mo>,</mo><msub><mi>r</mi><mn>1</mn></msub><mo>,</mo><mo>.</mo><mo>.</mo><mo>.</mo><mo>,</mo><msub><mi>r</mi><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow></msub><mo stretchy="false">}</mo></mrow></math></span> 表示（包含 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span> 个元素，索引从 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0</mn></mrow></math></span> 到 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow></math></span>，对象为桶的边界值，单位：原文未说明）。
+接着定义 UOV 的生成公式：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mo stretchy="false">{</mo><msub><mi>O</mi><mi>i</mi></msub><msubsup><mo stretchy="false">}</mo><mrow><mi>i</mi><mo>=</mo><mn>0</mn></mrow><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow></msubsup><mo>=</mo><mrow><mo stretchy="true">{</mo><mtable><mtr><mtd><mn>1</mn><mo>−</mo><mi>f</mi><mo stretchy="false">(</mo><mo stretchy="false">|</mo><mi>D</mi><mo>−</mo><msub><mi>r</mi><mi>i</mi></msub><mo stretchy="false">|</mo><mo stretchy="false">)</mo><mo>,</mo></mtd><mtd><mtext>if </mtext><mi>D</mi><mo>≥</mo><msub><mi>r</mi><mi>i</mi></msub></mtd></mtr><mtr><mtd><mn>0</mn><mo>,</mo></mtd><mtd><mtext>otherwise</mtext></mtd></mtr></mtable></mrow></mrow></math>
+</div>
+<p><strong>公式符号沿用与逐一解释：</strong></p>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">{</mo><msub><mi>O</mi><mi>i</mi></msub><msubsup><mo stretchy="false">}</mo><mrow><mi>i</mi><mo>=</mo><mn>0</mn></mrow><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow></msubsup></mrow></math></span>：表示一个长度为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span> 的 UOV 目标向量集合，包含 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span> 个元素，索引 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 从 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0</mn></mrow></math></span> 到 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow></math></span>，对象为 UOV 元素，单位：原文未说明。其中每个元素 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>O</mi><mi>i</mi></msub></mrow></math></span> 是一个实数标量，单位：原文未说明。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span>：整数索引，表示当前正在计算的是第 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 个桶（维度），范围从 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0</mn></mrow></math></span> 到 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow></math></span>，单位：原文未说明。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span>：桶的总数量，整数标量，单位：原文未说明。作者在实验中基于权衡（图 8b）将其经验性地设为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>16</mn></mrow></math></span>。<figure class="paper-figure"><a href="https://arxiv.org/pdf/2501.09954#page=6"><img src="figures/openalex-w4410582823/figure-8.png" alt="Figure 8: (a) DSE performance comparison of searching using BO" loading="lazy"></a><figcaption>Figure 8 · <a href="https://arxiv.org/pdf/2501.09954#page=6">原文 PDF 第 6 页</a></figcaption></figure></li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi></mrow></math></span>：一个单调递增的数学函数。结合文中的 Algorithm 1，作者具体选择的函数是指数衰减函数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>f</mi><mo stretchy="false">(</mo><mi>x</mi><mo stretchy="false">)</mo><mo>=</mo><mi>exp</mi><mo stretchy="false">(</mo><mo>−</mo><mi>x</mi><mo stretchy="false">)</mo></mrow></math></span>。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>D</mi></mrow></math></span>：地面实况（Ground-truth）的硬件配置数值（标量，属于实数集 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>ℝ</mi></mrow></math></span>，单位：原文未说明），来源于 MAESTRO 搜索出的最优解。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>r</mi><mi>i</mi></msub></mrow></math></span>：第 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 个桶的下边界阈值，实数标量，属于实数集 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>ℝ</mi></mrow></math></span>，单位：原文未说明。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">|</mo><mi>D</mi><mo>−</mo><msub><mi>r</mi><mi>i</mi></msub><mo stretchy="false">|</mo></mrow></math></span>：真实数值 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>D</mi></mrow></math></span> 与桶边界 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>r</mi><mi>i</mi></msub></mrow></math></span> 之间的绝对标量距离，单位：原文未说明。</li>
+<li>条件分支：如果真实值 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>D</mi></mrow></math></span> 大于等于某个桶的边界 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>r</mi><mi>i</mi></msub></mrow></math></span>，则该维度的向量值被赋予一个小数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn><mo>−</mo><mi>exp</mi><mo stretchy="false">(</mo><mo>−</mo><mo stretchy="false">|</mo><mi>D</mi><mo>−</mo><msub><mi>r</mi><mi>i</mi></msub><mo stretchy="false">|</mo><mo stretchy="false">)</mo></mrow></math></span>（算法 1 第 3 行）。这个小数编码了“回归”信息。如果 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>D</mi><mo>&lt;</mo><msub><mi>r</mi><mi>i</mi></msub></mrow></math></span>，则该维度及之后所有维度的值为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0</mn></mrow></math></span>（算法 1 第 6 行）。这保证了向量中前面的元素总是非零且单调递增，后面的元素都是零，这种严格的“序列”属性对神经网络来说极其容易学习。</li>
+</ul>
+<p><strong>统一损失函数 (Unification Loss)</strong>：
+为了训练模型输出这种特殊的 UOV，作者采用了类似“Focal Loss”的损失函数指导解码器训练：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>ℒ</mi><mi>o</mi></msub><mo>=</mo><munderover><mo>∑</mo><mrow><mi>i</mi><mo>=</mo><mn>0</mn></mrow><mrow><mi>K</mi><mo>−</mo><mn>1</mn></mrow></munderover><mrow><mo stretchy="true">{</mo><mtable><mtr><mtd><mi>α</mi><mo stretchy="false">|</mo><msub><mi>q</mi><mi>i</mi></msub><mo>−</mo><msub><mi>u</mi><mi>i</mi></msub><msup><mo stretchy="false">|</mo><mi>γ</mi></msup><mi>B</mi><mi>C</mi><mi>E</mi><mo stretchy="false">(</mo><msub><mi>u</mi><mi>i</mi></msub><mo>,</mo><msub><mi>q</mi><mi>i</mi></msub><mo stretchy="false">)</mo><mo>,</mo></mtd><mtd><mtext>if </mtext><msub><mi>q</mi><mi>i</mi></msub><mo>&gt;</mo><mn>0</mn></mtd></mtr><mtr><mtd><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mi>α</mi><mo stretchy="false">)</mo><msubsup><mi>u</mi><mi>i</mi><mi>γ</mi></msubsup><mi>B</mi><mi>C</mi><mi>E</mi><mo stretchy="false">(</mo><msub><mi>u</mi><mi>i</mi></msub><mo>,</mo><msub><mi>q</mi><mi>i</mi></msub><mo stretchy="false">)</mo><mo>,</mo></mtd><mtd><mtext>otherwise</mtext></mtd></mtr></mtable></mrow></mrow></math>
+</div>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mi>B</mi><mi>C</mi><mi>E</mi><mo stretchy="false">(</mo><msub><mi>u</mi><mi>i</mi></msub><mo>,</mo><msub><mi>q</mi><mi>i</mi></msub><mo stretchy="false">)</mo><mo>=</mo><mo>−</mo><msub><mi>q</mi><mi>i</mi></msub><mi>log</mi><mo stretchy="false">(</mo><msub><mi>u</mi><mi>i</mi></msub><mo stretchy="false">)</mo><mo>−</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><msub><mi>q</mi><mi>i</mi></msub><mo stretchy="false">)</mo><mi>log</mi><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><msub><mi>u</mi><mi>i</mi></msub><mo stretchy="false">)</mo></mrow></math>
+</div>
+<p><strong>公式符号沿用与逐一解释：</strong></p>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>ℒ</mi><mi>o</mi></msub></mrow></math></span>：统一损失标量，单位：原文未说明，优化目标是将其最小化。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi><mo>,</mo><mi>K</mi></mrow></math></span>：沿用上文，表示桶的索引和总数。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>α</mi></mrow></math></span>：标量权重超参数，单位：原文未说明，用于平衡正负类别。作者基于经验设定为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.75</mn></mrow></math></span>。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>q</mi><mi>i</mi></msub></mrow></math></span>：第 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 个维度的地面实况 UOV 值（即上一个公式计算出的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>O</mi><mi>i</mi></msub></mrow></math></span>），在 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0</mn></mrow></math></span> 到 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn></mrow></math></span> 之间，标量，单位：原文未说明。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>u</mi><mi>i</mi></msub></mrow></math></span>：模型解码器第 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>i</mi></mrow></math></span> 个维度实际预测输出的实数标量值，单位：原文未说明。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">|</mo><msub><mi>q</mi><mi>i</mi></msub><mo>−</mo><msub><mi>u</mi><mi>i</mi></msub><mo stretchy="false">|</mo></mrow></math></span>：预测误差的绝对值，标量，单位：原文未说明。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>γ</mi></mrow></math></span>：聚焦超参数标量，单位：原文未说明。作者基于经验设定为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1</mn></mrow></math></span>。它使得模型对于预测错得离谱的桶施加极大的惩罚，而对已经预测准确的桶减少关注。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>B</mi><mi>C</mi><mi>E</mi></mrow></math></span>：二元交叉熵（Binary Cross-Entropy）算子公式，计算预测概率分布 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>u</mi><mi>i</mi></msub></mrow></math></span> 与真实分布 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>q</mi><mi>i</mi></msub></mrow></math></span> 之间的信息差异量标量，单位：原文未说明。</li>
+</ul>
+<h4>E. 模型部署流水线 (Deployment Pipeline)</h4>
+<p>AIrchitect v2 是基于单层神经网络（如单独一个矩阵乘法层）进行训练和推理的。但在实际部署时，给定一个具有 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 层的模型，定义集合 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>M</mi><mo>=</mo><mo stretchy="false">{</mo><msub><mi>L</mi><mn>0</mn></msub><mo>,</mo><msub><mi>L</mi><mn>1</mn></msub><mo>,</mo><mo>.</mo><mo>.</mo><mo>.</mo><mo>,</mo><msub><mi>L</mi><mi>N</mi></msub><mo stretchy="false">}</mo></mrow></math></span>，其包含模型的所有层，元素总数为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi><mo>+</mo><mn>1</mn></mrow></math></span> 个，索引从 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0</mn></mrow></math></span> 到 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span>，对象为具体的网络层。假设 AIrchitect v2 已经为每一层推荐了硬件配置，定义集合 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>H</mi><mi>W</mi><mo>=</mo><mo stretchy="false">{</mo><mi>H</mi><msub><mi>W</mi><mrow><msub><mi>L</mi><mn>0</mn></msub></mrow></msub><mo>,</mo><mi>H</mi><msub><mi>W</mi><mrow><msub><mi>L</mi><mn>1</mn></msub></mrow></msub><mo>,</mo><mo>.</mo><mo>.</mo><mo>.</mo><mo>,</mo><mi>H</mi><msub><mi>W</mi><mrow><msub><mi>L</mi><mi>N</mi></msub></mrow></msub><mo stretchy="false">}</mo></mrow></math></span>，其元素总数为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi><mo>+</mo><mn>1</mn></mrow></math></span> 个，索引从 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0</mn></mrow></math></span> 到 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span>，对象为对应层 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>L</mi><mi>i</mi></msub></mrow></math></span> 的推荐硬件配置 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>H</mi><msub><mi>W</mi><mrow><msub><mi>L</mi><mi>i</mi></msub></mrow></msub></mrow></math></span>。由于通常整块芯片的硬件配置只能是统一的，作者提出了两种作者设定的启发式综合策略来决定最终的全局硬件配置 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>H</mi><msub><mi>W</mi><mi>M</mi></msub></mrow></math></span>：</p>
+<ul>
+<li><strong>方法 1（Method 1）</strong>：把模型为每一层独立预测出的最优配置收集起来，形成一个候选集。然后用 MAESTRO 分别在这些候选配置上评估整个大模型的总延迟，选出总延迟最低的那个配置作为最终的全局硬件架构 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>H</mi><msub><mi>W</mi><mi>M</mi></msub></mrow></math></span>。</li>
+<li><strong>方法 2（Method 2）</strong>：找出单层执行延迟最长的那一层（瓶颈层），直接把瓶颈层所推荐的硬件配置作为整个芯片的全局配置 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>H</mi><msub><mi>W</mi><mi>M</mi></msub></mrow></math></span>。本文后续的部署实验采用了方法 1。</li>
+</ul>
+<hr />
+<h3>IV. Results and Discussion (结果与讨论)</h3>
+<h4>A. 实验设置</h4>
+<ul>
+<li><strong>数据集</strong>：利用强化学习搜索工具（ConfuciuX）和 MAESTRO 生成了 10 万个真实样本的数据集（8 万训练，2 万测试）。目标是优化延迟（Latency）。</li>
+<li><strong>对比基线</strong>：AIrchitect v1 (MLP 分类)、GANDSE (基于生成对抗网络 GAN 的生成式探索)、以及 VAESA (基于变分自编码器 VAE 配合贝叶斯优化的回归生成方法)。</li>
+</ul>
+<h4>B. 层级预测准确率 (Table III)</h4>
+<p>如原文<strong>表 3 (Table III)</strong> 所示，AIrchitect v2 取得了 91.17% 的准确率。相比之下，AIrchitect v1 由于模型太浅、采用硬分类导致严重过拟合，准确率仅有 77.60%。GANDSE 虽然达到了 84.39%，但由于其生成方式面临“无约束学习问题”，仍然低于本文方法。这证明了对比学习平滑空间和 UOV 表示的有效性。</p>
+<h4>C. 模型级部署评估 (Figure 7)</h4><figure class="paper-figure"><a href="https://arxiv.org/pdf/2501.09954#page=6"><img src="figures/openalex-w4410582823/figure-7.png" alt="Figure 7: DSE performance (latency) comparison of different                                                                                                                 size(green), for AI RCHITECT V 1 and AI RCHITECT V 2" loading="lazy"></a><figcaption>Figure 7 · <a href="https://arxiv.org/pdf/2501.09954#page=6">原文 PDF 第 6 页</a></figcaption></figure>
+<p>作者在训练中未见过的现代模型（ResNet-50, Llama2-13B, Llama3-8B）上测试了“方法 1”流水线。如原文<strong>图 7 (Fig. 7)</strong> 所示，柱状图的纵轴是使用 MAESTRO 估算的归一化延迟，越低越好。红色的 AIrchitect v2 柱子始终最低，即它预测出的硬件配置跑大模型最快，性能相比其他基线有高达 1.7 倍的提升。VAESA（配合贝叶斯搜索）是唯一接近本文结果的方法，因为它也尝试通过 VAE 构建连续潜空间。</p>
+<h4>D. 核心消融实验 (Ablations)</h4>
+<ul>
+<li><strong>第一阶段损失函数的作用 (Table II)</strong>：只用基本的回归误差训练时，准确率仅为 79.43%（和 v1 差不多差）。加入对比学习损失后，猛增约 10.54%。再加入性能预测损失作为语义辅助，最终达到 91.17%。这直接证实了非均匀分布是破坏传统模型学习的罪魁祸首。<figure class="paper-figure"><a href="https://arxiv.org/pdf/2501.09954#page=5"><img src="figures/openalex-w4410582823/table-II.png" alt="Table II: AI RCHITECT V 2 TABLE III: Comparison with other" loading="lazy"></a><figcaption>Table II · <a href="https://arxiv.org/pdf/2501.09954#page=5">原文 PDF 第 5 页</a></figcaption></figure></li>
+<li><strong>对比学习空间 VS. VAE 生成空间 (Figure 8a)</strong>：图 8(a) 展示了在两个不同空间中执行贝叶斯优化（BO）寻找最佳设计点的过程。横轴是采样次数，纵轴是延迟。在本文的对比学习嵌入空间中（蓝线），搜索收敛速度极快，且最终延迟更低；而在 VAE 空间（绿线）中搜索效率明显更差，证明对比学习塑造的性能曲面更加平滑均匀。</li>
+<li><strong>UOV 与传统分类的对比 (Figure 9)</strong>：图 9 直观对比了使用传统分类头和使用本文 UOV 头的效果。红柱代表准确率（越高越好），绿柱代表归一化后的模型参数量大小（越低越好）。无论是用在 v1 还是 v2 的骨干网络上，换用 UOV 都在提升准确率的同时，大幅缩减了模型体积。这表明 UOV 通过“回归桶内偏移”取代了无脑增加分类标签数，极具可扩展性。<figure class="paper-figure"><a href="https://arxiv.org/pdf/2501.09954#page=6"><img src="figures/openalex-w4410582823/figure-9.png" alt="Figure 9: Effect of UOV on prediction accuracy(red) and model" loading="lazy"></a><figcaption>Figure 9 · <a href="https://arxiv.org/pdf/2501.09954#page=6">原文 PDF 第 6 页</a></figcaption></figure></li>
+<li><strong>UOV 超参数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span> 的选择 (Figure 8b)</strong>：作者测试了将连续空间划分为不同数量桶的效果。随着 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span> 增大，准确率（蓝线）上升，但在 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi><mo>=</mo><mn>16</mn></mrow></math></span> 时达到饱和；同时模型体积（绿线）开始线性膨胀。作者指出一个有趣的数学现象：当 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi><mo>=</mo><mn>1</mn></mrow></math></span> 时，整个模型其实退化成了纯粹的回归模型；当 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span> 趋于无穷大时，它退化为传统的纯分类模型。选取 16 是兼顾两者优点的权衡。</li>
+</ul>
+<hr />
+<h3>V. Related Works (相关工作) 与 VI. Conclusion (结论)</h3>
+<p>先前的搜索算法受限于庞大复杂的硬件空间效率低下，而现有的监督学习算法未能充分解决 DSE 数据集中长尾分布和非凸目标景观的难题。
+本文所提出的 AIrchitect v2 通过 Transformer 的编码器-解码器架构，完美融合了用于特征空间正则化的对比学习，以及用于规避分类/回归劣势的统一序数向量（UOV）。通过这些设计，v2 显著提升了测试集上的预测准确度，并实质性地提升了所推断架构在新型 DNN/LLM 上的执行效率。</p>
+</div></td></tr></table></body></html>
