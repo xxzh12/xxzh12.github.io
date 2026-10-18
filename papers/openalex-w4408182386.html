@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EdgeLLM: A Highly Efficient CPU-FPGA Heterogeneous Edge Accelerator for Large Language Models · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>EdgeLLM: A Highly Efficient CPU-FPGA Heterogeneous Edge Accelerator for Large Language Models</h1><p class="paper-note">Mingqiang Huang, Ao Shen, Kai Li, Haoxiang Peng, Boyu Li, Yupeng Su, Hao Yu · IEEE Transactions on Circuits and Systems I Regular Papers · 2025 · <a href="https://doi.org/10.1109/tcsi.2025.3546256">原文</a> · <a href="https://arxiv.org/pdf/2407.21325">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>这是一份关于《EdgeLLM: A Highly Efficient CPU-FPGA Heterogeneous Edge Accelerator for Large Language Models》论文的详细解读。文章提出了一种用于边缘设备的大语言模型硬件加速方案，通过软硬件协同设计解决了边缘场景下内存带宽和计算效率的瓶颈。</p>
+<h3>贯穿全文的主线</h3>
+<p>边缘设备（如机器人等功耗受限的本地终端）需要部署 LLM（Large Language Models，大语言模型），但目前的 LLM 严重依赖 GPU（Graphics Processing Unit，原文未定义/未说明全称）。GPU 存在功耗高（&gt;200W）、资源开销大的问题；而传统的 FPGA（原文未定义/未说明全称及具体解释）由于 LLM 巨大的参数量和复杂的算子类型，面临严重的访存墙和编译调度难题。为解决这一问题，本文作者提出了一种名为 EdgeLLM 的 CPU-FPGA 异构加速器。硬件层面上，作者设计了混合精度计算阵列和对数尺度稀疏性，以充分利用（fully utilize）硬件的计算和访存带宽；软件层面上，作者设计了统一的数据格式以消除算子间的数据重排开销，并设计了延迟隐藏的编译机制。最终，该系统在边缘场景下实现了超越当前 GPU 和先进 FPGA 加速器（如 FlightLLM）的吞吐量和能效。</p>
+<hr />
+<h3>第一部分：导言与背景 (Introduction &amp; Background)</h3>
+<p>自 Transformer 架构提出以来，人工智能领域逐渐被大语言模型主导。Transformer 依赖于自注意力机制（Self-Attention，一种允许模型在处理当前数据时动态关注序列中其他位置信息的算法），打破了传统 CNNs（convolutional neural networks，卷积神经网络）和 RNNs（recurrent neural networks，循环神经网络）在并行能力上的限制。然而，当模型参数量达到数十亿（如文中提到的 6B 或 7B 模型，其中 6B 或 7B 代表矩阵乘法中权重参数的数量，原文未定义/未说明 B 的具体全称和数值含义，常识为 Billion 即十亿参数）时，会产生极重的计算和内存访问负担。</p>
+<p><strong>背景补充</strong>：在深度学习推理中，为了将巨大的模型塞入边缘设备的内存，通常会使用模型量化技术（Quantization），将原本 FP16（原文未定义/未说明全称）格式表示的权重参数压缩为 INT4（原文未定义/未说明全称，通常指 4 位整数）格式。然而，为了保证模型最终输出的准确度，推理过程中产生的中间激活值（Activation）通常仍需要保持在 FP16 格式。</p>
+<p>这给硬件加速器带来了两个核心挑战：</p>
+<ol>
+<li><strong>多样的计算精度与庞大的访存需求</strong>：对于 FFN（Feed-Forward Neural Network，前馈神经网络）层，计算本质上是 FP16 的激活值乘以 INT4 的权重（FP16*INT4）。而对于 MHA（Multi-Head Attention，多头注意力）层，推理过程中会动态生成 KVcache（原文未定义/未说明全称及具体解释，仅说明是动态生成的激活数据），这些数据以 FP16 格式保存在内存中，因此 MHA 层的矩阵乘法是 FP16 的激活值乘以 FP16 的 KVcache（FP16*FP16）。现有的硬件通常无法同时高效处理这两种混合精度计算。</li>
+<li><strong>算子类型的巨大多样性与编译复杂性</strong>：LLM 包含超过 15 种不同的计算算子，每种算子偏好的张量维度不同。如果缺乏标准化的数据格式，当数据从一个算子流向下一个算子时，必须进行重塑（Reshape）或矩阵转置。这会打断内存访问的连续性，引入严重的延迟。</li>
+</ol>
+<p>针对上述问题，作者提出了 EdgeLLM 架构。</p>
+<hr />
+<h3>第二部分：硬件设计 (Hardware Design)</h3>
+<p>为了打破上述瓶颈，作者设计了包含 CPU、主存 DDR（原文未定义/未说明全称，用于存储激活数据等）、HBM（High Bandwidth Memory，高带宽内存，本文用于存储 INT4 权重和 FP16 KVcache）以及 FPGA 加速器 IP 核的异构系统（如图 2 所示）。CPU 作为系统大脑，通过 PCIe（Peripheral Component Interconnect Express）总线和 AXI lite 协议（原文未定义/未说明具体解释）控制 FPGA 内部寄存器，而大批量数据传输则通过 AXI-full 协议进行。为了最大化利用内存带宽，作者特别为 MHA 算子构建了一组 DMA（Direct Memory Access，直接内存访问）专用路径，将在线生成的 KVcache 直接写回 HBM，从而使 MHA 也能利用 HBM 的极高带宽。</p>
+<h4>1. 混合精度计算单元 (Mix-Precision Computing PEs)</h4>
+<p>为了在计算和访存之间找到最优平衡点，作者使用了 Roofline 模型（一种将操作强度 operational intensity 作为横轴，单位 TFLOP/Bytes；可达性能 achievable performance 作为纵轴，单位 TFLOP/s，以直观展示系统是受限于内存带宽还是计算能力的分析工具，如图 3 所示）。本文使用的 FPGA HBM 接口单周期可提供 8192 bits 带宽（32 个 AXI 端口，每个端口 256 bits）。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.21325#page=5"><img src="figures/openalex-w4408182386/figure-3.png" alt="Figure 3: Roofline model and the designed operation point of this work. Both" loading="lazy"></a><figcaption>Figure 3 · <a href="https://arxiv.org/pdf/2407.21325#page=5">原文 PDF 第 5 页</a></figcaption></figure>
+<p><strong>作者的设计逻辑与约束</strong>：为了完全吃满这 8192 bits 的数据，且不被计算单元拖后腿，作者将计算模块的并行度翻倍。具体而言，他们让负责与 HBM 通信的 DMA 模块运行在 280MHz 的高频时钟下，而核心计算阵列运行在 140MHz 的低频时钟下。这意味着在计算阵列的一个时钟周期内，HBM 能够提供 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>8192</mn><mo>×</mo><mn>2</mn><mo>=</mo><mn>16384</mn></mrow></math></span> bits 的数据。
+以此为基准：</p>
+<ul>
+<li>对于 FFN 层的 FP16*INT4 计算，系统设定并行度为 4096（即同时进行 4096 次乘法）。4096 个 INT4 权重正好需要 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4096</mn><mo>×</mo><mn>4</mn><mtext> bits</mtext><mo>=</mo><mn>16384</mn><mtext> bits</mtext></mrow></math></span> 的位宽。</li>
+<li>对于 MHA 层的 FP16*FP16 计算，系统设定并行度为 1024。1024 个 FP16 的 KVcache 数据也正好需要 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1024</mn><mo>×</mo><mn>16</mn><mtext> bits</mtext><mo>=</mo><mn>16384</mn><mtext> bits</mtext></mrow></math></span> 的位宽。
+通过这种精确的位宽匹配，系统刚好处于 Roofline 模型的拐点上，既不受内存限制，也不受计算限制。</li>
+</ul>
+<p>底层微架构采用 G-VSA（grouped vector systolic computing array，分组向量脉动计算阵列，一种按行将数据传输进处理单元的架构，比传统 TPU（原文未定义/未说明全称）的广播式阵列功耗和面积更小）。数据流被巧妙地拆分为四个流水线阶段：在阶段 1 中，分离出 FP16 和 INT4 数据的符号位（S）、指数位（E）和尾数位（M）（单位原文均未说明），并将尾数相乘（保留全部精度避免丢失小数细节）；在阶段 2 中，基于指数差进行对齐移位，送入 19 位宽的加法树进行累加（19 位是作者在资源消耗和避免溢出间做出的权衡选择）；在阶段 3 中，通过 LZA（Leading Zero Anticipate，前导零预测）重新规格化为浮点数并乘以初始缩放因子（Scale）。表 1 的实验表明，与将中间结果转换为 FP16 或自定义 FP20 的基线方法相比，该混合精度单元不仅节省了最高 49.1% 的芯片面积，且计算错误率降至极低的 0.047%。</p>
+<h4>2. 对数尺度结构化稀疏 (Log-scale Sparsity)</h4>
+<p>稀疏化指利用模型参数中存在的大量趋近于零的值，直接跳过零乘法以加速计算。非结构化稀疏在硬件上极难实现，而商用 GPU 使用的固定比例稀疏（如每 4 个数中强行保留 2 个非零数）效率虽高但降低了内存访问灵活性。</p>
+<p>作者提出了硬件友好的“对数尺度结构化稀疏”，支持 1/2、1/4、1/8 等不同层级的稀疏度。其规则是：每 8 个相邻数据块中必须包含至少 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 个零（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi></mrow></math></span> 的取值范围和单位原文未说明）。在 HBM 中，数据被打包压缩（如图 5 所示），每个数据包顺序存放量化缩放参数（Scale，单位：原文未说明）、记录非零位置的掩码（Mask，单位：原文未说明）和实际的权重数据（wt，单位：原文未说明）。</p>
+<p><strong>架构与 EDA 之间的数据结构反馈</strong>：在体系结构与 EDA 的跨层接口中，传递的量包括不同算子层的稀疏度级别（如 50%、75%、87.5%）以及对应的掩码编码方式（独热编码或块内地址编码）；目标或约束是减少掩码的存储开销并提高硬件计算单元的利用率（达到 100%）；建模假设是不同算子层具有不同的稀疏度分布（例如 QKVO 层为 50% 稀疏度，h-to-4h 层为 75% 稀疏度）；信息损失表现为算法精度（Perplexity 和 Zero-shot Accuracy）的轻微下降。如何存储掩码（Mask）对存储开销影响极大。作者根据稀疏度的高低，设计了一种混合编码方案：</p>
+<ul>
+<li>当稀疏度较低（如 50%、75%）时，使用独热编码（one-hot encoding scheme，即用一长串 0 和 1 的每一位代表一个固定位置的权重是否为零）。</li>
+<li>当稀疏度极高（如 87.5%）时，独热编码会产生大量冗余位。此时系统自动切换为块内地址编码（address-in-block scheme，直接以二进制数字记录那几个极少数非零权重的具体偏移地址）。
+表 2 的结果证明，结合硬件对这种混合稀疏度的原生支持，可以在几乎不损失算法精度（Perplexity 和 Zero-shot Accuracy）的前提下，将有效权重位宽压缩至极低，最高可获得 3.66 倍的性能提升。</li>
+</ul>
+<hr />
+<h3>第三部分：软件设计 (Software Design)</h3>
+<p>硬件设计完成后，如何将复杂的 AI 模型图（Operator Graph）高效映射到硬件上，是编译器的核心任务。</p>
+<h4>1. 统一数据格式</h4>
+<p>在诸如 ChatGLM 这样的模型中，MHA 模块需要处理 Query（查询）、Key（键）、Value（值）矩阵（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Q</mi><mo>,</mo><mi>K</mi><mo>,</mo><mi>V</mi></mrow></math></span>）。其中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Q</mi></mrow></math></span> 矩阵维度为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">(</mo><mtext>token</mtext><mo>,</mo><mn>4096</mn><mo stretchy="false">)</mo></mrow></math></span>，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span> 矩阵维度为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">(</mo><mtext>token</mtext><mo>,</mo><mn>256</mn><mo stretchy="false">)</mo></mrow></math></span>，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>V</mi></mrow></math></span> 矩阵维度为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">(</mo><mtext>token</mtext><mo>,</mo><mn>256</mn><mo stretchy="false">)</mo></mrow></math></span>，元素含义分别为查询、键、值特征，来源为输入分别乘以权重矩阵 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>W</mi><mi>q</mi></msub><mo>,</mo><msub><mi>W</mi><mi>k</mi></msub><mo>,</mo><msub><mi>W</mi><mi>v</mi></msub></mrow></math></span> 得到，单位原文未说明。这些矩阵沿 Head（多头）维度进行切分和转置（例如计算 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>Q</mi><mo>×</mo><msup><mi>K</mi><mi>T</mi></msup></mrow></math></span>，其中上标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>T</mi></mrow></math></span> 表示转置，单位原文未说明）。如果在内存中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span> 矩阵的地址不连续，硬件流水线就会产生严重的停顿。</p>
+<p><strong>作者的解决方案</strong>：设计了一种通用的 3D/4D 张量表示法。所有的激活数据被强制重塑为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">[</mo><mi>C</mi><mi>H</mi><mo>/</mo><msub><mi>T</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo>,</mo><mtext>token</mtext><mo>,</mo><msub><mi>T</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo stretchy="false">]</mo></mrow></math></span> 的形状（其中 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>C</mi><mi>H</mi></mrow></math></span> 表示通道数，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub></mrow></math></span> 表示数据通道方向的并行度，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mtext>token</mtext></mrow></math></span> 表示序列长度；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>C</mi><mi>H</mi><mo>,</mo><msub><mi>T</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo>,</mo><mtext>token</mtext></mrow></math></span> 的单位原文均未说明；下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></math></span> 原文未说明具体含义）。
+为什么要采用这个特定的形状？这源于 AXI 总线协议的硬性约束：AXI 突发传输（burst transfers，指在单次事务中传输多个连续数据的能力，原文未定义/未说明“一次地址握手后”等细节）的数据宽度被固定为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub><mo>×</mo><mn>16</mn></mrow></math></span> 位。通过将张量的最后一个维度刚好设为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mrow><mi>o</mi><mi>u</mi><mi>t</mi></mrow></msub></mrow></math></span>，使得内存中连续的地址块刚好对应张量的物理连续维度。这样一来，无论算子如何变化，编译器都可以在不进行任何底层数据重排（rearrangement）的情况下，利用这种分段连续的地址特征完成等效的矩阵转置操作（如图 7 所示）。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.21325#page=9"><img src="figures/openalex-w4408182386/figure-7.png" alt="Figure 7: The data packaging method in the accelerator, which ensures all         address in AXI burst transfer will exactly be the width-" loading="lazy"></a><figcaption>Figure 7 · <a href="https://arxiv.org/pdf/2407.21325#page=9">原文 PDF 第 9 页</a></figcaption></figure>
+<h4>2. 软件架构与延迟隐藏</h4>
+<p>在 LLM 推理（Inference）阶段，输入的文本长度（Token 长度）是动态变化的，这会导致频繁的内存地址重计算。
+编译器引入了 <code>MAX Token</code> 属性（作者在宏定义中设定的最大可能文本长度，单位原文未说明），用这个静态值预先分配最大可能的内存空间。随后，作者利用 CPU 和 FPGA 异步执行的特点实现了延迟隐藏（Latency Hiding，如图 9 所示）：当 FPGA 加速器正在执行当前批次的算子时，CPU 主机利用这段等待时间，提前计算并向 FPGA 的控制寄存器中写入下一批次算子的控制指令。由于指令更新的延迟完全被重叠在了硬件计算的时间内，极大地提升了系统的实际吞吐率。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2407.21325#page=10"><img src="figures/openalex-w4408182386/figure-9.png" alt="Figure 9: Latency hiding in the inference stage.            complete the rapid start and continuous operation of the" loading="lazy"></a><figcaption>Figure 9 · <a href="https://arxiv.org/pdf/2407.21325#page=10">原文 PDF 第 10 页</a></figcaption></figure>
+<hr />
+<h3>第四部分：实验结果与评估 (Experimental Results)</h3>
+<p>系统在 AMD Xilinx VCU128 平台上完成了综合与实现。评估主要基于开源的 ChatGLM-6B 和 Qwen-7B 两个大语言模型。</p>
+<ol>
+<li>
+<p><strong>HBM 带宽利用率</strong>：这是衡量内存密集型 AI 芯片设计的核心指标。作者在此给出了量化推导：以 GLM 模型为例，理想操作时间（<code>ideal_operation_time</code>，即纯按硬件物理带宽传输所需的极限时间）等于：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mtext>ideal\_operation\_time</mtext><mo>=</mo><mfrac><mrow><mtext>input\_token</mtext><mo>×</mo><mtext>weight\_matrix\_size</mtext><mo>×</mo><mtext>bit\_width</mtext></mrow><mrow><mtext>HBM\_bandwidth\_per\_cycle</mtext></mrow></mfrac><mo>×</mo><mtext>time\_per\_cycle</mtext></mrow></math>
+</div>
+<p>代入实际参数：解码阶段每次处理 1 个 Token，矩阵包含 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>4096</mn><mo>×</mo><mn>4096</mn></mrow></math></span> 个参数，每个 INT4 参数 4 位；HBM 每个时钟周期传输 8192 位（bit/cycle），280MHz 下每个时钟周期约为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.571</mn><mtext> ns</mtext></mrow></math></span>。</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><mtext>ideal\_operation\_time</mtext><mo>=</mo><mfrac><mrow><mn>4096</mn><mo>×</mo><mn>4096</mn><mo>×</mo><mn>4</mn><mtext> bit</mtext></mrow><mrow><mn>8192</mn><mtext> bit/cycle</mtext></mrow></mfrac><mo>×</mo><mn>3.571</mn><mtext> ns</mtext><mo>=</mo><mn>29.25</mn><mi>μ</mi><mi>s</mi></mrow></math>
+</div>
+<p>实测的单层运行时间（<code>real_operation_time</code>）为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>38.5</mn><mi>μ</mi><mi>s</mi></mrow></math></span>。因此，实际的 HBM 带宽利用率达到了 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>29.25</mn><mi>μ</mi><mi>s</mi><mo>/</mo><mn>38.5</mn><mi>μ</mi><mi>s</mi><mo>≈</mo><mn>75.97</mn><mi>%</mi></mrow></math></span>。这比之前的先进 FPGA 加速器 FlightLLM（65.9%）高出近 11%，证明了数据重排消除和读写调度的有效性。</p>
+</li>
+<li>
+<p><strong>吞吐量与能耗对比（表 5）</strong>：在稀疏化加持下，EdgeLLM 在处理 GLM-6B 模型时，仅以 56.86W 的低功耗，达到了 85.8 token/s 的极高解码速度。对比 NVIDIA A100 GPU（当 Batch Size = 1 的边缘计算场景下，GPU 算力利用率通常低于 30% 且功耗高达 220W），EdgeLLM 的吞吐量高出 1.91 倍，能效比（energy efficiency，即生成每个 Token 消耗的焦耳数）高出 7.55 倍。相比 FPGA 领域的 SOTA 方案 FlightLLM，综合性能高出 10-24%。</p>
+</li>
+<li>
+<p><strong>DDR 系统的消融实验（表 3）</strong>：作者还在没有 HBM、仅使用带宽约为 60 GB/s 的传统 DDR 内存上进行了极限测试。结果显示，虽然由于矩阵-向量乘法陷入了严重的“内存瓶颈”，导致解码速度降至 HBM 系统的 25% 左右，但系统依然能够完成编译和执行。这表明该方案在极度廉价的边缘设备上也具备一定的生存能力。</p>
+</li>
+</ol>
+<p><strong>局限性补充说明</strong>：作者在文末诚实地指出了目前设计的局限性。LLM 中的旋转位置编码（Rotary Embedding）算子通常因模型而异，目前若要兼顾通用性只能交回给 CPU 串行处理，速度较慢。此外，目前芯片上所有的算子是按时间顺序（temporal-mode）串行执行的，上一个算子完全结束才会启动下一个，暂不支持流水线式的算子间并行。这些是未来能够继续压榨性能的空间。</p>
+<h3>总结</h3>
+<p>本文针对边缘场景下大语言模型部署所面临的功耗高、存储受限的问题，从硬件微架构（混合精度组向量阵列、对数结构化稀疏）出发填补了精度和硬件利用率间的鸿沟，并通过软件编译器层面的创新（强制统一的 3D 张量结构与 AXI 突发传输特性的硬绑定）彻底消除了算子间内存重排的开销。最终以较低的硬件代价换取了超越数据中心级 GPU 的边缘推理能效。</p>
+</div></td></tr></table></body></html>
