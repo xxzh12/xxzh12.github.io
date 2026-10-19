@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Benchmarking and Dissecting the Nvidia Hopper GPU Architecture · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>Benchmarking and Dissecting the Nvidia Hopper GPU Architecture</h1><p class="paper-note">Weile Luo, Ruibo Fan, Zeyu Li, Dayou Du, Qiang Wang, Xiaowen Chu · Proceedings - IEEE International Parallel and Distributed Processing Symposium · 2024 · <a href="https://doi.org/10.1109/ipdps57955.2024.00064">原文</a> · <a href="https://ruibo-fan.github.io/files/RuiboFan_CV_2.pdf">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>这是一份属于 Ruibo Fan 的个人简历（Curriculum Vitae，简称 CV），日期背景截至 2026 年 10 月 18 日。该简历展示了作者在高性能计算（High-Performance Computing, HPC）、计算机系统架构以及人工智能（AI）底层算子优化领域的学术与工程经历。</p>
+<p>关于 AI 框架、编译器、Tensor Cores 稠密数据块等核心系统与技术背景，原文未定义/未说明。</p>
+<p>以下将按简历的逻辑结构，逐节为您详细解析。</p>
+<h3>第一节：个人信息与教育背景 (Contact &amp; Education)</h3>
+<p>本节介绍了作者的基本联系方式与求学轨迹。作者目前就读于香港科技大学（广州）（HKUST-GZ）的数据科学与分析学域（Data Science and Analytics Thrust）。虽然原文未明确标注其当前的学位级别（基于常识推断为博士，但在本文中作为<strong>原文未证实的事实</strong>，仅按原文表述为 2022 年 9 月至今在读），其主修方向为高性能计算与计算机系统架构。</p>
+<p>在此之前，作者于 2019 年 9 月至 2022 年 6 月在由中国重点高校建设的北京大学前沿交叉学科研究院（AAIS）取得硕士学位（M.S.），主修数据科学、高性能计算与并行计算。其本科学位（B.S.）于 2015 年 9 月至 2019 年 6 月在华中科技大学人工智能与自动化学院取得，主修自动化与模式识别。作者在本科期间的平均学分绩点（GPA，即一种国际通用的学生学术成绩量化指标）为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3.91</mn><mo>/</mo><mn>4</mn></mrow></math></span>，位列专业前 5%。其本科毕业论文的主题是“基于 CUDA 的 SVM 算法并行优化研究”。（<strong>背景补充</strong>：关于 SVM 和 CUDA 的具体展开与定义，原文未定义/未说明）。这一经历表明作者在本科阶段就已切入基于 GPU 的底层并发编程领域。</p>
+<h3>第二节：学术出版物 (Publication)</h3>
+<p>本节列出了作者在顶级计算机系统与架构会议及期刊上的研究成果。作者的论文高度集中在解决大型神经网络在 GPU 上推理与训练时的性能瓶颈问题。原文中括号内的 CCF-A 或 CCF-B 指代中国计算机学会（CCF）对国际学术会议的评级，其中 A 类代表该领域的国际最高水平。</p>
+<p><strong>大语言模型（LLM）推理优化方向</strong>：作者在系统架构顶会 ASPLOS 2026 上发表了关于 &quot;ZipServ&quot; 的一作论文。该研究提出了硬件感知的无损压缩技术，以实现快速且内存高效的 LLM 推理。（<strong>背景补充</strong>：关于 LLM 推理受限于“内存墙”问题及无损压缩的原理，原文未定义/未说明）。此外，作者在 EuroSys 2025 发表的一作论文 &quot;SpInfer&quot; 获得了该会议的<strong>最佳论文奖（Best Paper Award）</strong>。该文利用“底层稀疏性（Low-Level Sparsity）”来提升 LLM 推理效率。底层稀疏性是指直接利用硬件（如寄存器分布或内存存取粒度）支持的稀疏模式，而非仅仅在算法数学层面上进行权重裁剪，从而将理论上的计算量减少转化为真实的硬件加速。作者还将基于 SpInfer 的扩展工作提交至计算机系统顶级期刊 TOCS（目前状态为受邀且在审，<strong>原文未证实最终录用结果</strong>）。近期，作者还参与了 ICLR 2025 的一项关于 &quot;STBLLM&quot; 的研究，致力于突破一比特（1-Bit）量化的结构化二值大语言模型的障碍。</p>
+<p><strong>通用稀疏矩阵乘法与图神经网络方向</strong>：在 ASPLOS 2024 上，作者发表了一作论文 &quot;DTC-SpMM&quot;。该研究旨在弥合加速通用稀疏矩阵乘法（SpMM）与 Tensor Cores 之间的鸿沟。（<strong>背景补充</strong>：关于 Tensor Cores 的输入要求及内存打包开销，原文未定义/未说明）。在 IPDPS 2023 上，作者还发表了针对图神经网络（GNN）训练加速的快速稀疏 GPU 内核（Kernels）的一作论文。GNN 的邻接矩阵天然极其稀疏，这进一步印证了作者在稀疏计算数据流优化方面的积累。在这一领域，作者也在 Peng Cheng Lab（鹏城实验室）的实习期间（下文会提及）开发了用于 GNN 的高优化 SpMM 与 SDDMM（原文未定义/未说明该缩写的具体展开）底层算子。</p>
+<p><strong>底层架构微基准测试（Micro-benchmarking）方向</strong>：作者参与了多项旨在“解剖（Dissecting）”商业 GPU 内部未公开架构细节的研究。例如在 IPDPS 2024 发表的关于 Nvidia Hopper（关于其是否为 Nvidia 针对 AI 推出的 H100 等芯片的微架构代号，原文未定义/未说明）架构的基准测试论文，以及将该研究扩展后投递至 TOCS 期刊（在审，<strong>未证实最终录用</strong>）的论文。此外，作者还参与了发表于 PPoPP 2026 的 &quot;ROME&quot; 论文，研究如何通过驯服细粒度的不规则性来最大化 GPU 在全对最短路径算法中的效率。</p>
+<p>在标准制定方面，作者参与了 2022 年 12 月发布的 IEEE 标准 2941.1-2022，该标准规范了人工智能算子接口（Operator Interfaces）。</p>
+<h3>第三节：教学与实习经历 (Teaching &amp; Internship)</h3>
+<p>本节展示了作者的学术输出与工业界实践。在教学方面，作者在 HKUST(GZ) 担任了 2025 年秋季《数据科学数学》课程的助教（负责线性代数、概率论、优化等核心数学基础的实验课与实操教程），以及 2024 年秋季和 2025 年夏季《计算机科学导论》的助教。此前在 2021 年春季的北京大学，作者担任了《并行计算 II》的助教，独立设计了关于多线程、消息传递（Message Passing）以及分布式内存的编程作业。</p>
+<p>在实习方面，作者目前（2025 年 10 月至今）在阿里巴巴集团的技术风险与效率（TRE）团队担任研究实习生，致力于大规模 AI与数据系统的性能优化与可靠性分析。早前在 2019 年与 2021 年，作者于鹏城实验室（PCL）人工智能研究中心实习，开发了 GPU 加速的机器学习与图计算工作负载。</p>
+<h3>第四节：科研项目 (Research Project)</h3>
+<p>本节是理解作者如何将底层硬件约束转化为软件设计选择的关键，体现了架构与编译器层的协同。</p>
+<p>作者参与了国家重点研发计划（2019B121204008）中的 AI 超算原型核心技术研发（2019 年 9 月至 2021 年 9 月）。在该项目中，作者基于张量数据抽象（Tensor Data Abstractions）联合开发了高性能 AI 算子库。为了在不同的硬件后端和 AI 框架上提升吞吐量与可扩展性，作者采用了自动调优（Auto-tuning）、数据布局重排（Data-layout reordering）和算子特化（Kernel specialization）技术。这里体现了典型的软硬协同（关于“因为内存控制器的读取位宽固定...极大提高带宽利用率”等原理，原文未定义/未说明）。</p>
+<p>在 2020 年 6 月至 2021 年 6 月华为技术有限公司的实习期间，作者直接参与了 MindSpore（华为的 AI 计算框架，原文未说明是否开源）的算子与网络模型开发。作者对框架内 GPU 的计算与内存瓶颈进行了性能分析（Profiling），并通过**内核融合（Kernel Fusion）<strong>和</strong>内存合并（Memory Coalescing）**提升了算子级别的性能。（<strong>背景补充</strong>：关于“内核融合”和“内存合并”的底层原理，原文未定义/未说明）。</p>
+<p>此外，在 2019 年底至 2022 年底，作者参与了神经网络处理器关键标准及验证芯片的项目，负责起草 AI 芯片平台与算子接口的国家及国际标准，并开发了高优化的验证实现代码。</p>
+<h3>第五节：荣誉与学术服务 (Awards &amp; Service)</h3>
+<p>本节总结了作者获得的认可。最具含金量的是前文提及的 EuroSys 2025 最佳论文奖（据简历标注，该奖项授予录用论文的前两名，当年整体录用率为 12.2%）。作者还获得了 2023 年首届 DSA 优秀研究奖亚军，并因在 IEEE 人工智能算子接口标准 2941.1-2022 中的贡献获得杰出贡献奖。早年还获得了华中科技大学的优秀毕业生（2019）及学业优秀奖学金（2017）。</p>
+<p>在学术服务方面，作者担任了系统顶会 EuroSys 2026 的 Shadow PC（影子程序委员会）成员，协助会议的论文评审协调与技术讨论。</p>
+<h3>总结：全文主线与局限性</h3>
+<p>纵观整份简历，<strong>一条清晰的技术主线贯穿始终</strong>：随着深度学习（特别是 GNN 和 LLM）规模的指数级增长，软件算法中大量且不规则的“稀疏性”与现代加速器（如包含 Tensor Cores 的 GPU）要求数据高度稠密、规则的“刚性硬件约束”之间产生了严重的性能与内存墙壁垒。作者的研究最初从基础的 CUDA 算子开发起步（本科阶段），进阶到 AI 框架层的访存与调度机制优化（华为与鹏城实验室阶段），最终聚焦于通过软硬件协同的底层系统架构设计（如 DTC-SpMM 和压缩算法 ZipServ），直接在微架构层面打破这种壁垒，从而榨取 GPU 的极限性能。</p>
+<p><strong>局限性与关键假设</strong>：作者目前多数突出的底层优化成果（如基于微基准测试的发现和底层稀疏性利用）高度绑定于 Nvidia 现有的商业化 GPU 架构（如 Hopper/CUDA 生态）。这些架构强依赖特定的内存层级与指令集假设。关于“流式存内计算芯片”和“EDA 成本模型”的局限性与关键假设分析，原文未定义/未说明。此外，简历中涉及的两篇 TOCS 期刊论文仍处于在审状态，其最终的学术影响力仍有待客观验证。</p>
+</div></td></tr></table></body></html>
