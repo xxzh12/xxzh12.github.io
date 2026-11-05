@@ -1,0 +1,29 @@
+/* Homepage-only layouts; the published paper pages keep their own styles. */
+html:not(.home-with-papers) body {
+  max-width: 1200px;
+}
+
+html:not(.home-with-papers) #layout-menu {
+  display: none;
+}
+
+.home-view-switch {
+  margin-bottom: 1em;
+  text-align: right;
+  color: #555;
+  font-size: 0.85em;
+}
+
+.home-view-switch select {
+  max-width: 100%;
+  padding: 0.3em;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  background: white;
+  color: #224b8d;
+  font: inherit;
+}
+
+@media print {
+  .home-view-switch { display: none; }
+}
