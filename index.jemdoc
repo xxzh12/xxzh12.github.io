@@ -2,20 +2,9 @@
 # jemdoc: menu{menu.conf}{index.html}
 # jemdoc: addcss{css/jemdoc.css}
 # jemdoc: addcss{css/myMiddle.css}
+# Internal layout setting: keep the next directive for classic; remove it for Daily Papers.
 # jemdoc: addcss{css/home-view.css}
-# jemdoc: addjs{js/home-view}
 # jemdoc: title{Yuhao Ji - The Chinese University of Hong Kong}
-
-~~~
-{}{raw}
-<div class="home-view-switch" id="home-view-switch" hidden="hidden">
-<label for="home-view">Homepage view:</label>
-<select id="home-view">
-<option value="classic">Classic (without Daily Papers)</option>
-<option value="papers">With Daily Papers</option>
-</select>
-</div>
-~~~
 
 ~~~
 {}{img_left}{img/photo3.jpg}{}{126}{}{}
