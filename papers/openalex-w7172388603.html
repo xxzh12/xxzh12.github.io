@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SHyLA: 3D-Stacked NVM-DRAM Hybrid LLM-Inference Architecture Exploiting Data and Memory Heterogeneity · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>SHyLA: 3D-Stacked NVM-DRAM Hybrid LLM-Inference Architecture Exploiting Data and Memory Heterogeneity</h1><p class="paper-note">Liu He, Fuyao Zhou, Cheng Peng, Shunan Dong, Ziming Zhang, Huazhong Yang, Yongpan Liu, Guowei Zhang, Hongyang Jia · Proceedings - International Symposium on Computer Architecture/Proceedings · 2026 · <a href="https://doi.org/10.1109/isca66397.2026.00058">原文</a> · <a href="https://he-liu-ooo.github.io/files/papers/isca2026-shyla-paper.pdf">PDF</a></p><p class="paper-note"></p><div class="paper-warning">图表提取提示：报告提到的 Table III 未能自动裁出；请查看原论文 PDF。</div><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>本文是对《SHyLA: 3D-Stacked NVM-DRAM Hybrid LLM-Inference Architecture Exploiting Data and Memory Heterogeneity》（SHyLA：利用数据与存储异构性的 3D 堆叠 NVM-DRAM 混合大语言模型推理架构）的详细解析。</p>
+<p>为了帮助理解全文，我们首先建立<strong>背景补充与系统全貌</strong>：
+大语言模型（LLM）的推理主要分为两个阶段：**预填充阶段（Prefill）**并行处理输入提示词（Prompt），属于计算密集型；**解码阶段（Decode）**逐个生成输出词元（Token），属于典型的存储带宽密集型。随着上下文长度增加，存储系统不仅面临极高的带宽需求，还面临巨大的容量压力。传统的 2D/2.5D 封装受限于芯片边缘的物理接口（PHY）数量，无法提供足够的外部带宽。<strong>3D 堆叠技术</strong>允许将存储芯片直接堆叠在计算芯片上方，通过密集的硅通孔（TSV，Through-Silicon Vias，即穿透硅晶圆的垂直电气连接）实现通信。这种架构提供了“面积带宽（Areal Bandwidth）”扩展能力——即可以通过增加芯片面积来布置更多的 TSV 从而提升带宽，而不像 2D 架构那样仅受限于周长。</p>
+<p>本文所讨论的硬件系统采用<strong>多芯粒模块（MCM，Multi-Chip-Module）</strong>。在本文的设定中，一个系统由多块 PCB 板组成，基板（Substrate）上搭载了硅中介层（Interposer），中介层上集成了多个<strong>芯粒（Chiplet）</strong>。本文研究的核心就在单一芯粒的微架构层面：每个芯粒最底层是一个计算裸片（Compute Die），其上方通过混合键合（Hybrid Bonding）技术并排堆叠了 DRAM（动态随机存取存储器，速度快、寿命长但容量小）和 NVM（非易失性存储器，本文采用 PCM 相变内存作为原型，密度高、容量大但写入慢且寿命有限）的 3D 存储堆栈。</p>
+<p>以下是按论文逻辑逐节进行的详细解析。</p>
+<hr />
+<h3>一、 研究动机与问题背景 (Introduction &amp; Background)</h3>
+<p>在 3D 堆叠异构存储（NVM + DRAM）架构中，设计者面临一个核心问题：虽然 NVM 提供了极高的密度，且 3D 堆叠通过 TSV 提供了灵活的带宽-容量权衡（可以牺牲一定的存储单元面积来换取外围 I/O 电路以提升带宽），但 NVM 的写入速度极慢且具有物理寿命限制（每个单元写入次数受限）。</p>
+<p>过去的混合存储研究多针对 2D/2.5D 架构和通用负载，通常将 NVM 视为带宽受限的容量补充，采用硬件缓存机制（如将 DRAM 作为 NVM 的 Cache）。但这种机制对 LLM 不友好，容易造成带宽浪费，且没有充分利用 3D 堆叠带来的面积带宽优势。</p>
+<p>因此，本文提出了三个核心问题：</p>
+<ol>
+<li>如何将 LLM 数据的异构性与 NVM-DRAM 存储设备的异构性对齐？</li>
+<li>如何在混合存储设定下，设计数据流以有效利用 3D 堆叠提供的面积带宽？</li>
+<li>如何在庞大的设计空间中，找到最大化系统吞吐量且满足单用户吞吐量约束的较优设计点？</li>
+</ol>
+<p>为了解决这些问题，作者提出了 <strong>SHyLA</strong> 软硬件协同架构。</p>
+<h3>二、 硬件与负载数据的异构性表征 (Characterization)</h3>
+<p>本节是 SHyLA 架构设计的理论基石。作者分别对存储设备和 LLM 数据进行了异构性量化分析。</p>
+<h4>1. 存储设备的异构性</h4>
+<p>在固定的芯片面积预算（本文设定单个存储裸片面积为 400 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mtext>mm</mtext><mn>2</mn></msup></mrow></math></span> 这一物理与制造成本约束）下，设计者必须在 DRAM 和 NVM 的面积分配，以及各自内部的带宽与容量之间做权衡。
+由于 NVM 单元密度极高（本文假设为 DRAM 的 4 倍），它能在相同面积下提供比 DRAM 大得多的容量，或者在固定容量下释放更多面积用于构造 TSV 以获取极高的读带宽。然而，NVM 面临严重的<strong>读写不对称性</strong>。作者指出，LLM 推理中线性层占主导，其顺序访问模式能极好地利用行缓冲（Row Buffer），从而掩盖 NVM 较长的激活延迟（tRCD），使得 NVM 的实际读带宽利用率可达 70%（相比之下 DRAM 为 90%）。但是，NVM 漫长的写入恢复延迟（tWR）无法被掩盖，导致写入带宽利用率仅为 10%。此外，NVM 的写入耐受度（约 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mn>10</mn><mn>8</mn></msup></mrow></math></span> 次）远低于 DRAM（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>&gt;</mo><msup><mn>10</mn><mrow><mn>16</mn></mrow></msup></mrow></math></span> 次）。</p>
+<h4>2. LLM 数据的异构性</h4>
+<p>LLM 推理过程包含三类关键数据，它们的特性决定了数据放置策略。作者定义了数据体积的理论计算公式（以 MHA+Dense 结构为例）：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>D</mi><mrow><mtext>Weight</mtext></mrow></msub><mo>=</mo><mfrac><mrow><mn>12</mn><msup><mi>d</mi><mn>2</mn></msup><mi>L</mi></mrow><mrow><msub><mi>p</mi><mi>p</mi></msub><msub><mi>p</mi><mi>t</mi></msub></mrow></mfrac><mo>,</mo><mspace /><msub><mi>D</mi><mrow><mtext>KVCache</mtext></mrow></msub><mo>=</mo><mfrac><mrow><mn>2</mn><mi>d</mi><mi>s</mi><mi>b</mi><mi>L</mi></mrow><mrow><msub><mi>p</mi><mi>t</mi></msub></mrow></mfrac></mrow></math>
+</div>
+<p>在这里，<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>D</mi><mrow><mtext>Weight</mtext></mrow></msub></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>D</mi><mrow><mtext>KVCache</mtext></mrow></msub></mrow></math></span> 分别表示模型权重和键值缓存的数据体积（标量，单位：原文未说明，下标 Weight 代表权重，KVCache 代表键值缓存）。输入参数包括模型架构决定的常数：<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>d</mi></mrow></math></span> 为隐藏层维度（标量，单位：原文未说明），<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>L</mi></mrow></math></span> 为 Transformer 块的数量（标量，单位：原文未说明）；以及软件部署策略决定的变量：<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>b</mi></mrow></math></span> 为微批次大小（Micro Batch Size，即流水线单次处理的请求数，标量，单位：原文未说明），<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>s</mi></mrow></math></span> 为总序列长度（标量，单位：原文未说明，为预填充长度 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mrow><mtext>prompt</mtext></mrow></msub></mrow></math></span> 与生成长度 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>s</mi><mrow><mtext>gen</mtext></mrow></msub></mrow></math></span> 之和，下标 prompt 代表提示词，gen 代表生成），<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mi>t</mi></msub></mrow></math></span> 为张量并行度（标量，单位：原文未说明，下标 t 代表张量 tensor），<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mi>p</mi></msub></mrow></math></span> 为流水线并行度（标量，单位：原文未说明，下标 p 代表流水线 pipeline）。
+<em>公式说明：所有的除法都体现了模型并行策略对单节点内存占用的稀释。<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mi>p</mi></msub><msub><mi>p</mi><mi>t</mi></msub></mrow></math></span> 表示权重被流水线和张量切分；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mi>t</mi></msub></mrow></math></span> 表示 KVCache 主要随张量并行切分。</em></p>
+<p>结合公式和仿真，作者得出三类数据的特性：</p>
+<ul>
+<li><strong>中间激活力（IA, Intermediate Activations）：</strong> 体积极小，但<strong>写入极其密集</strong>。</li>
+<li><strong>权重（Weight）：</strong> 体积庞大，只读（无写入压力）。</li>
+<li><strong>键值缓存（KVCache）：</strong> 体积随批次大小和上下文长度急剧增长，读密集，但<strong>写入具有粗粒度特征</strong>（每次生成新词只追加写入一次，向量长度通常大于 NVM 的物理编程单元，无读-改-写开销）。</li>
+</ul>
+<p><strong>对齐策略：</strong> 基于上述结论，作者决定将写入密集的 IA 全部放置在 DRAM 中；将只读且占用空间的 Weight 放置在 NVM 中；将对容量需求巨大且写入压力较低的 KVCache 优先放置在 NVM 中，溢出部分再放入 DRAM。</p>
+<h3>三、 SHyLA 架构与数据流设计 (SHyLA Architecture &amp; Workload Mapping)</h3>
+<p>基于前面的对齐策略，作者详细设计了 SHyLA 的微架构和执行数据流。</p>
+<h4>1. 架构概览与 Tile 划分</h4>
+<p>在 SHyLA 的单个芯粒（Chiplet）中，底层计算裸片被划分为 20 个完全相同的 <strong>Tile（分片/瓦片）</strong>。这里的 Tile 是作者定义的计算基本单元，面积约 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>20</mn><msup><mtext>mm</mtext><mn>2</mn></msup></mrow></math></span>，内部包含 MAC（乘加计算）阵列、片上网络（NoC）路由器和局部缓冲区。
+上方并排堆叠了 DRAM 平面和 NVM 平面。根据 Tile 物理位置正上方的存储类型，Tile 被定义为 <strong>DTile</strong>（关联 DRAM）或 <strong>NTile</strong>（关联 NVM）。为了解决跨存储访问的问题，作者将一个 DTile 和若干个 NTile 组合成一个“<strong>Tile Group（分片组）</strong>”，组内配置专用的高速互连网络。</p>
+<h4>2. 以带宽利用率为中心的数据流 (Bandwidth-Utilization-Centric Dataflow)</h4>
+<p>为了充分榨取 3D 堆叠的面积带宽，必须避免某些存储平面闲置（饥饿）。SHyLA 采用了一种输出平稳结合输入平稳的时空映射策略。</p>
+<ul>
+<li><strong>FFN 层（前馈网络）：</strong> 线性算子需要从 NVM 读取 Weight，从 DRAM 读取 IA。SHyLA 在 Tile Group 内部进行协同：NVM 平面存储其正下方 NTile 负责的 Weight 块，并为同组的 DTile 存储一部分 Weight；而 DRAM 平面存储整个 Group 需要的 IA 数据。这样组内的所有 Tile 都能并行满载工作，避免了 DTile 没有局部 Weight 可读的窘境。</li>
+<li><strong>ATTN 层（注意力机制）：</strong> 注意力机制在解码阶段需要读取 KVCache。SHyLA 确保每个 NVM 平面存储供其对应 NTile 使用的 KVCache。由于预填充阶段耗时极短，为了支持解码阶段的并行 GEMV（矩阵向量乘）操作，作者规定相关的 KVCache 必须分配在单一存储平面（或在溢出时跨两个平面），这是一种基于硬件读写特性做出的<strong>软件数据放置约束</strong>。</li>
+</ul>
+<h3>四、 两阶段设计空间探索 (Design Space Exploration, DSE)</h3>
+<p>混合存储的物理配置（面积比例、带宽/容量权衡）加上软件部署策略（流水线/张量/专家并行度、微批次大小、预填充与解码是否解耦部署）构成了一个极大的设计空间。为此，作者提出了一个依赖分析模型的两阶段启发式 DSE 方法。</p>
+<p>为了加速探索，作者首先定义了抽象的架构执行时间计算模型，以 GEMM 为例，单芯粒内执行时间 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mrow><mtext>intra</mtext></mrow></msub></mrow></math></span>（标量，单位：时钟周期，下标 intra 代表内部）定义为：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>T</mi><mrow><mtext>intra</mtext></mrow></msub><mo>=</mo><mi>⌈</mi><mfrac><mrow><mi>I</mi></mrow><mrow><msub><mi>B</mi><mi>I</mi></msub></mrow></mfrac><mi>⌉</mi><mo>·</mo><mrow><mo stretchy="true">[</mo><mfrac><mrow><msub><mi>B</mi><mi>I</mi></msub><mo>·</mo><mi>J</mi><mo>·</mo><mi>I</mi><mi>A</mi><mi>_</mi><mi>b</mi><mi>w</mi></mrow><mrow><mtext>DRAM-BW.</mtext><mo>·</mo><mi>u</mi><mi>t</mi><mi>i</mi><msub><mi>l</mi><mrow><mtext>DRAM\_RD</mtext></mrow></msub></mrow></mfrac><mo>+</mo><mi>⌈</mi><mfrac><mrow><mi>K</mi></mrow><mrow><msub><mi>B</mi><mi>K</mi></msub></mrow></mfrac><mi>⌉</mi><mo>·</mo><mrow><mo stretchy="true">(</mo><mfrac><mrow><mi>J</mi><mo>·</mo><msub><mi>B</mi><mi>K</mi></msub><mo>·</mo><mi>W</mi><mi>e</mi><mi>i</mi><mi>g</mi><mi>h</mi><mi>t</mi><mi>_</mi><mi>b</mi><mi>w</mi></mrow><mrow><mtext>NVM-BW.</mtext><mo>·</mo><mi>u</mi><mi>t</mi><mi>i</mi><msub><mi>l</mi><mrow><mtext>NVM\_RD</mtext></mrow></msub></mrow></mfrac><mo>+</mo><mfrac><mrow><msub><mi>B</mi><mi>I</mi></msub><mo>·</mo><msub><mi>B</mi><mi>K</mi></msub><mo>·</mo><mi>I</mi><mi>A</mi><mi>_</mi><mi>b</mi><mi>w</mi></mrow><mrow><mtext>DRAM-BW.</mtext><mo>·</mo><mi>u</mi><mi>t</mi><mi>i</mi><msub><mi>l</mi><mrow><mtext>DRAM\_WR</mtext></mrow></msub></mrow></mfrac><mo stretchy="true">)</mo></mrow><mo stretchy="true">]</mo></mrow></mrow></math>
+</div>
+<p><em>公式说明：</em></p>
+<ul>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>I</mi><mo>,</mo><mi>J</mi><mo>,</mo><mi>K</mi></mrow></math></span>：GEMM 矩阵的维度（标量，取值范围原文未说明，单位：原文未说明）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>B</mi><mi>I</mi></msub><mo>,</mo><msub><mi>B</mi><mi>K</mi></msub></mrow></math></span>：由片上缓冲区大小决定的分块（Tiling）因子（标量，单位：原文未说明，下标 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>I</mi><mo>,</mo><mi>K</mi></mrow></math></span> 分别对应维度 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>I</mi></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>K</mi></mrow></math></span>）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>I</mi><mi>A</mi><mi>_</mi><mi>b</mi><mi>w</mi><mo>,</mo><mi>W</mi><mi>e</mi><mi>i</mi><mi>g</mi><mi>h</mi><mi>t</mi><mi>_</mi><mi>b</mi><mi>w</mi></mrow></math></span>：IA 和 Weight 数据的字节宽度（标量，单位：字节，bw 代表字节宽度 byte-width，原文未明确定义缩写）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mtext>DRAM-BW.</mtext><mo>,</mo><mtext>NVM-BW.</mtext></mrow></math></span>：由硬件 CACTI-3DD 模型评估出的原始物理带宽（标量，单位：字节/周期，BW 代表带宽）。</li>
+<li><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>u</mi><mi>t</mi><mi>i</mi><msub><mi>l</mi><mrow><mtext>DRAM\_RD</mtext></mrow></msub><mo>,</mo><mi>u</mi><mi>t</mi><mi>i</mi><msub><mi>l</mi><mrow><mtext>NVM\_RD</mtext></mrow></msub><mo>,</mo><mi>u</mi><mi>t</mi><mi>i</mi><msub><mi>l</mi><mrow><mtext>DRAM\_WR</mtext></mrow></msub></mrow></math></span>：基于数据流得到的带宽实际利用率（标量，无量纲，util 代表利用率，下标 RD 代表读 read，WR 代表写 write，本文分别设定为 90%, 70%, 10%）。
+该公式物理意义在于：总执行时间取决于将切块后的数据从 DRAM 和 NVM 搬运到计算阵列的通信延迟，体现了双缓冲技术掩盖计算延迟后的“访存受限”本质。</li>
+</ul>
+<p>芯粒间的通信开销 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>T</mi><mrow><mtext>inter</mtext></mrow></msub></mrow></math></span>（标量，单位：时钟周期，下标 inter 代表间）定义为：</p>
+<div class="math block">
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block"><mrow><msub><mi>T</mi><mrow><mtext>inter</mtext></mrow></msub><mo>=</mo><mfrac><mrow><mn>2</mn><mo>·</mo><mi>I</mi><mo>·</mo><mi>d</mi><mo>·</mo><mi>A</mi><mi>C</mi><mi>C</mi><mi>_</mi><mi>b</mi><mi>w</mi><mo>·</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mfrac><mrow><mn>1</mn></mrow><mrow><msub><mi>p</mi><mi>t</mi></msub></mrow></mfrac><mo stretchy="false">)</mo></mrow><mrow><mi>I</mi><mi>C</mi><mi>N</mi><mi>T</mi><mi>_</mi><mi>B</mi><mi>W</mi></mrow></mfrac><mo>+</mo><mfrac><mrow><mn>2</mn><mo>·</mo><mi>I</mi><mo>·</mo><mi>d</mi><mo>·</mo><mi>I</mi><mi>A</mi><mi>_</mi><mi>b</mi><mi>w</mi><mo>·</mo><mo stretchy="false">(</mo><mn>1</mn><mo>−</mo><mfrac><mrow><mn>1</mn></mrow><mrow><msub><mi>p</mi><mi>t</mi></msub></mrow></mfrac><mo stretchy="false">)</mo></mrow><mrow><mi>I</mi><mi>C</mi><mi>N</mi><mi>T</mi><mi>_</mi><mi>B</mi><mi>W</mi></mrow></mfrac></mrow></math>
+</div>
+<p><em>公式说明：</em> <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>A</mi><mi>C</mi><mi>C</mi><mi>_</mi><mi>b</mi><mi>w</mi></mrow></math></span> 为 IA 部分和（partial sums）的字节宽度（标量，单位：字节，ACC 原文未明确定义缩写）；<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>I</mi><mi>C</mi><mi>N</mi><mi>T</mi><mi>_</mi><mi>B</mi><mi>W</mi></mrow></math></span> 为芯片间互连网络带宽（标量，单位：字节/周期，ICNT 原文未明确定义缩写）。此公式计算了张量并行（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>p</mi><mi>t</mi></msub></mrow></math></span>）带来的 All-Reduce 通信开销。</p>
+<p>在构建上述分析模型时，体系结构与 EDA 之间存在跨层接口的建模假设和信息损失：分析模型将每个计算芯粒抽象为包含一个统一的 MAC 阵列和三个统一缓冲区（用于输入、权重和输出），并假设双缓冲可以完全掩盖权重和 KVCache 的加载时间，忽略了尾部计算（信息损失：未掩盖的计算停顿占总运行时间不到 20%）。</p>
+<p><strong>探索流程：</strong></p>
+<ul>
+<li><strong>阶段 1（系统吞吐量导向的硬件配置）：</strong> 这是一个针对硬件设计的阶段。使用经验启发式策略固定软件部署参数（例如采用不解耦的 PD 聚合部署以避免权重复制，设定特定的并行度）。通过遍历存储设计空间（见原文表 III 的设定参数），利用上述模型找出能带来最大**系统吞吐量（每秒系统输出总 Token 数）**的 3D 存储硬件配置。最终结论是选取了 <strong>4:1 的 NVM 与 DRAM 面积比</strong>，因为 NVM 的大容量允许更大的批次大小，从而提高了权重数据的复用率。</li>
+<li><strong>阶段 2（基于服务水平目标约束的软件部署搜索）：</strong> 这是一个针对软件部署的阶段。在确定的硬件基础上，采用带 Top-K 选择的进化算法（EA，见论文 Algorithm 1）。优化的目标函数仍是系统吞吐量，但加入了严格的约束条件：必须满足预设的<strong>单用户吞吐量（Per-user throughput）约束</strong>，即 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msubsup><mi>T</mi><mrow><mtext>min</mtext></mrow><mrow><mtext>user</mtext></mrow></msubsup><mo>=</mo><mn>25</mn></mrow></math></span> tokens/s/user（标量，上标 user 代表用户，下标 min 代表最小值）。如果不满足该约束，算法的进化方向会倾向于减小批次大小（牺牲总吞吐量换取单用户延迟），反之则增大批次大小。</li>
+</ul>
+<p><em>(注：此处体现了体系结构与 EDA/物理建模的跨层联系。作者并没有进行后端物理版图布线（P&amp;R），而是利用 3D-ICE（热分析）和 CACTI-3DD（存储建模）提取出面积、功耗、基础带宽和延迟这些物理指标。这些物理极限作为约束条件和代价模型的输入参数，直接塑造了架构层面对 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>B</mi><mi>I</mi></msub><mo>,</mo><msub><mi>B</mi><mi>K</mi></msub></mrow></math></span> 乃至 NVM 面积比例的选择。)</em></p>
+<h3>五、 评估与实验分析 (Evaluation)</h3>
+<p>实验部分验证了 SHyLA 的有效性和物理可行性。对比基线包括：在相同面积预算下的 DRAM-only 和 NVM-only 3D 堆叠系统，以及商用的 NVIDIA H800 和 AMD MI300X 集群。</p>
+<h4>1. 峰值系统吞吐量表现</h4>
+<p>在不考虑单用户延迟、追求极致吞吐量的场景下，SHyLA 取得了显著优势：</p>
+<ul>
+<li><strong>对比 DRAM-only 获得最高 5.84x 加速：</strong> 因为 DRAM 面积固定时容量太小，限制了能够同时处理的请求数量（批次大小 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>b</mi></mrow></math></span>），导致系统频繁从内存中重载庞大的 Weight，造成极高的访存开销。SHyLA 利用 NVM 的高密度容纳了极大的 KVCache，支撑了更大的批次大小，从而大幅提升了 Weight 复用率。</li>
+<li><strong>对比 NVM-only 获得最高 6.03x 加速：</strong> NVM-only 虽然容量更大，但 IA（中间激活）数据的极高频写入不仅引发巨大的写延迟（tWR 瓶颈），还会直接烧毁 NVM。SHyLA 巧妙地利用系统中保留的 DRAM 吸收了所有 IA 写流量，突破了性能瓶颈。</li>
+<li><em>数据流的价值：</em> 实验表明，如果不采用前文提到的“以带宽利用率为中心的瓦片分组数据流”（即基线 SHyLA-D），系统吞吐量会下降，证明了软硬协同调度的必要性。</li>
+</ul>
+<h4>2. SLO 约束下的表现与扩展性</h4>
+<p>在满足 25 tokens/s/user 的服务质量前提下，SHyLA 依然保持优势。实验得出几个关键结论：</p>
+<ul>
+<li><strong>PD 聚合部署优于分离部署：</strong> 将预填充（Prefill）和解码（Decode）部署在同一节点（聚合），比分离在不同节点更好。因为分离部署会导致预填充阶段算出的 KVCache 必须通过网络传输并在解码节点<strong>写入 NVM</strong>，引发了严重的写入开销和寿命折损。这一软件策略选择受到 NVM 硬件物理特性的强烈约束。</li>
+<li><strong>模型规模敏感性：</strong> 对于小模型（如 LLaMA3-70B），DRAM 容量已足够支撑较大的批次，SHyLA 提升有限；但对于大模型（如 PaLM 540B）或极长上下文场景，DRAM 容量遭遇瓶颈，SHyLA 的大容量优势被完全释放。</li>
+</ul>
+<h4>3. NVM 寿命（Endurance）与热分析（Thermal）</h4>
+<p>作者承认 NVM 的寿命是业界的普遍担忧。通过计算动态写入量，发现在理想磨损均衡假设下，由于 SHyLA 中 NVM 仅负责 KVCache 追加写入和偶发的权重更新，其平均写入率极低。即便保守估计 NVM 的最大擦写次数 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msub><mi>W</mi><mrow><mtext>max</mtext></mrow></msub></mrow></math></span>（标量，单位：原文未说明，下标 max 代表最大值）为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mn>10</mn><mn>8</mn></msup><mi>~</mi><msup><mn>10</mn><mn>9</mn></msup></mrow></math></span>，SHyLA 也能实现长达数年（超 10 年）的安全服役期，最高比 NVM-only 架构长 15.4 倍。</p>
+<p>在热分析方面，使用 3D-ICE 结合液冷散热（传热系数设定为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>2</mn><mo>×</mo><msup><mn>10</mn><mrow><mo>−</mo><mn>7</mn></mrow></msup><mtext>W</mtext><mo>/</mo><mo stretchy="false">(</mo><mi>μ</mi><msup><mtext>m</mtext><mn>2</mn></msup><mo>·</mo><mtext>K</mtext><mo stretchy="false">)</mo></mrow></math></span>）进行仿真，系统所有部件（计算裸片、DRAM、NVM）的稳态温度均保持在 344.6K 以下，证明了高强度 3D 堆叠在散热上是可行的。</p>
+<h3>六、 总结与主线串联 (Conclusion &amp; Storyline)</h3>
+<p><strong>全文逻辑主线：</strong>
+大语言模型推理尤其是长上下文场景，正撞上传统 2D 内存系统的“容量-带宽墙”。3D 堆叠技术能通过 TSV 面积扩展打破外部带宽瓶颈，而新兴的 NVM 技术能提供高密度容量。作者顺着这一思路，试图将两者结合。但在探索中遇到<strong>阻碍</strong>：NVM 虽然容量大、3D 读带宽潜力高，但写入慢且寿命短，如果直接像通用处理器那样把它当主存或缓存在用，性能和寿命都会崩溃。
+为此，作者<strong>设计了 SHyLA 架构</strong>，核心思路是“异构数据对异构硬件”。通过理论公式量化发现，LLM 的权重庞大且只读，KVCache 庞大但写入是粗粒度的，IA 虽然小但疯狂写入。因此，SHyLA 把 NVM 专门留给权重和 KVCache，把少量的 DRAM 留作 IA 的专属“防波堤”。为了匹配这种物理切割，作者进一步在微架构层面切分 Tile 并设计了专门的输入/输出平稳数据流。
+为了在庞大的“硬件面积比例-软件部署参数”组合中找到较优解，作者构建了基于解析代价模型的<strong>两阶段 DSE 探索框架</strong>，将物理约束（面积、带宽）转化为优化目标的惩罚项，最终筛选出 4:1 的混合内存配置。
+<strong>最终结果</strong>表明，该架构有效打破了 LLM 推理的显存容量瓶颈，支持更大的微批次，大幅超越了同等面积下的单一存储架构和当前的商业 GPU。</p>
+<p><strong>关键假设与局限性：</strong>
+本文的成功强烈依赖于几个假设：首先，NVM 设备的 3D 堆叠工艺必须成熟并能与计算裸片无缝键合；其次，10 年以上的预期寿命是建立在“完美的底层磨损均衡（Ideal Wear-leveling）”机制之上的（这通常需要内存控制器硬件和操作系统的深度协同，本文未详细设计该机制）；最后，该设计采用了静态显式的数据调度（平坦内存寻址），这意味着现有的诸如 vLLM 等软件栈不能直接运行，必须开发针对物理层感知的定制化 LLM 推理编译器和内存管理器。这些结论不应直接推广至具有大量随机读写特征的非 LLM 通用计算负载中。</p>
+</div></td></tr></table></body></html>
