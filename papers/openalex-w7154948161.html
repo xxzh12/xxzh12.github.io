@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>End-to-End Physical Design Automation Flow for Yield-Optimized Inverse-Designed Large-Scale Electronic-Photonic Integrated Circuits · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>End-to-End Physical Design Automation Flow for Yield-Optimized Inverse-Designed Large-Scale Electronic-Photonic Integrated Circuits</h1><p class="paper-note">Hongjian Zhou, Haoyu Yang, Haoxing Ren, J. Matres, Jiaqi Gu · ACM/IEEE Design Automation Conference (DAC) · 2026 · <a href="https://doi.org/10.1145/3770743.3807764">原文</a> · <a href="https://arxiv.org/pdf/2604.15493">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>本文提出了一种名为 OptoSynthesizer 的端到端物理设计自动化（EPDA，原文未说明全称）流程，专门用于优化大规模、逆向设计的光电集成电路（EPICs, Electronic-Photonic Integrated Circuits）的制造良率。</p>
+<p>为了帮助理解本文，<strong>背景补充</strong>：光电集成电路（EPIC）是将传统的电子控制电路与光子器件（利用光作为载体传输和处理信息的器件）集成在同一个芯片系统中的技术。它分为多个抽象层级：最底层是<strong>器件层</strong>（如波导、分束器、相移器），中间是<strong>电路层</strong>（由连线的器件组成特定功能的网络），最上层是<strong>系统架构</strong>。物理设计（Physical Design）是指将电路逻辑图（Schematic）转换为制造工厂可以使用的具体几何图形布局（Layout，通常格式为 GDS，原文未说明全称）。在制造阶段，由于光刻（Lithography）和蚀刻（Etching）等工艺的不完美，晶圆（Wafer）上实际造出的形状会与设计掩模（Mask）产生偏差，这种偏差被称为<strong>工艺变异（Fabrication Variation）</strong>。如果变异导致芯片性能不达标，该芯片就会被废弃，合格芯片占总产量的比例即为<strong>良率（Yield）</strong>。</p>
+<h3>1. 引言与背景问题探讨 (Introduction &amp; Background)</h3>
+<p>随着人工智能工作负载、数据密集型计算和高带宽通信的快速增长，传统的电互连和计算单元已经难以满足系统扩展的需求。光电集成电路（EPICs）结合了电子电路的成熟控制能力以及光子技术的高带宽、低延迟和大规模并行性，成为了一种极具前景的硬件平台。</p>
+<p>为了在有限的芯片面积内容纳更多的光子器件，目前学术界和工业界广泛采用**逆向设计（Inverse Design）**方法来生成超紧凑的光子器件。传统的光子器件设计依赖专家经验，在一个预定义的拓扑结构内调整少量参数（例如直线的长度或圆弧的半径）。而逆向设计则将器件合成转化为一个数学优化问题：首先设定一个目标品质因数（FoM, figure of merit，例如特定的透射率或光谱响应），然后利用电磁仿真和伴随方法（adjoint-based methods）在极高维度的设计空间中迭代更新器件的几何形状。这种方法能够突破直觉限制，生成体积缩小几个数量级且性能极高的器件结构。</p>
+<p>然而，本文指出，尽管逆向设计在仿真中表现优异，但在实际部署时却面临严峻挑战，核心症结在于<strong>缺乏一个统一的、具有制造感知（fabrication-aware）的物理设计自动化技术栈</strong>。当前的集成光子电路设计流程是高度碎片化的，器件合成、布局生成、布线和布局后验证往往各自为战，且很少在早期设计阶段考虑可制造性（DFM, design-for-manufacturing）和良率优化。</p>
+<p>具体到器件层面（如原文图 2 所示），逆向设计生成的器件通常具有极其不规则的亚波长（尺寸小于光波长）几何形状。这些复杂的形状对光刻畸变、蚀刻偏差等工艺变异极其敏感。在器件的敏感区域，即使是微小的像素级形状偏差，也会导致制造后的实际品质因数（Post-fab FoM）发生断崖式下跌（例如原文图 2 中 FoM 从预期的 0.98 跌落至 0.34），从而导致良率极低。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2604.15493#page=2"><img src="figures/openalex-w7154948161/figure-2.png" alt="Figure 2: Fabrication error causes severe performance and yield                                  photonics-specific placement and routing engines, and ➌ post-layout" loading="lazy"></a><figcaption>Figure 2 · <a href="https://arxiv.org/pdf/2604.15493#page=2">原文 PDF 第 2 页</a></figcaption></figure>
+<p>在电路层面的布局设计上，光子电路的布线与传统的电线布线有本质区别。光波导（传输光的通道）是方向敏感的，且必须以曲线形式（curvilinear）布线，需要满足极大的最小弯曲半径（bend radii）以防止光信号泄漏；同时，波导交叉会带来不可忽视的光损耗（insertion loss）。这意味着在光子电路中，器件的放置（placement）和波导的布线（routing）是强耦合的，器件位置直接决定了互连拓扑、路径长度、光损耗以及相位误差。传统流程中，设计师往往需要手动在原理图和布局之间反复迭代，这对于包含密集互连的大规模光电集成电路来说，既耗时又难以扩展。</p>
+<p>针对上述痛点，作者提出，一个有效的 EDA（电子设计自动化）流程不能仅仅把制造变异、热串扰（邻近热源对光学特性的影响）和光电相互作用当作“设计完成后的修补工作”，而必须从器件生成的第一步起，就将它们作为核心优化目标。</p>
+<h3>2. 核心方法：OptoSynthesizer 框架 (Proposed Framework)</h3>
+<p>为了解决上述问题，作者构建了 OptoSynthesizer，这是一个全栈、端到端的物理设计框架，旨在将可制造性和电路性能作为一等公民（first-class design objectives）。该框架主要由三个核心模块和一个评估闭环组成，数据流向依次为：器件生成 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>→</mo></mrow></math></span> 布局规划 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>→</mo></mrow></math></span> 详细布线 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>→</mo></mrow></math></span> 提取验证与协同优化（如原文图 3 所示）。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2604.15493#page=2"><img src="figures/openalex-w7154948161/figure-3.png" alt="Figure 3: Overview of the proposed fabrication-aware physical                                    workflow for creating compact, yield-optimized inverse-designed pho-" loading="lazy"></a><figcaption>Figure 3 · <a href="https://arxiv.org/pdf/2604.15493#page=2">原文 PDF 第 2 页</a></figcaption></figure>
+<h4>2.1 器件层级：OptoSynthesizer-InvDes</h4>
+<p>该模块的任务是提供一个良率优化的、逆向设计的光子 PDK（原文未说明全称）。它集成了两项关键能力：</p>
+<p>首先是<strong>对制造鲁棒的逆向设计（Fabrication-Robust Inverse Design）</strong>。作者使用了其之前开发的 MAPS 基础设施。在这个环节中，优化目标不再仅仅是理想形状下的电磁性能。作者将具有变化采样的可微制造模型直接整合到了端到端的逆向设计循环中。这意味着优化算法在一个受制造能力约束的子空间内寻找解，同时协同优化器件性能和对工艺偏差的抵抗力。在跨层接口上，生成的器件布局及其端口信息和 S 参数模型（S-parameter，原文未定义具体含义）会被打包为兼容 GDSFactory（一种开源布局工具库）格式的 PDK 单元，传递给下游的 EDA 流程。</p>
+<p>其次是<strong>光子感知的逆向光刻技术（PA-ILT, photonics-aware inverse lithography）</strong>。<strong>背景补充：</strong> 逆向光刻技术（ILT）试图让晶圆上的最终图形尽可能还原设计图形（即几何恢复）。
+但本文作者指出，对于光子器件，单纯的几何恢复是不够的，因为在关键光学敏感区域的微小形变会导致巨大的光学功能退化。因此，作者引入了基于 PRISM 框架的 PA-ILT 技术。它训练了一个“物理增强的 AI 数字孪生（digital twin）”来模拟从掩模到晶圆的图形转移过程。这里的核心逻辑是：利用器件的光学敏感度（device sensitivity）来指导掩模的逆向优化，确保修正后的掩模在经历了 193 nm DUV（原文未说明全称）光刻后，能够在其制造出来的实际形状上忠实再现“预期的光学行为”，而不仅仅是视觉上的几何相似。这个数字孪生模型同时也作为一个快速的虚拟晶圆厂，为后续的电路级评估提供数据。</p>
+<h4>2.2 布局层级：OptoSynthesizer-Place</h4>
+<p>解决的是光子器件放置问题，作者使用了名为 Apollo 的工具引擎。前文提到，光子布线资源极其受限，放置决定了布线的成败。</p>
+<p>Apollo 引入了一个名为 <strong>cosWA</strong> 的光子专用线长模型（wirelength model）。在架构与 EDA 的跨层接口上，cosWA 明确将**端口方向（port orientation）<strong>和</strong>弯曲带来的布线开销（bend-induced routing overhead）**纳入了代价模型。这意味着如果两个对接端口方向相反，算法会预先计算出光波导为了掉头所需的巨大转弯空间。
+同时，引擎通过一种称为“单元膨胀（cell inflation，即在器件周围强行划定额外的空白区域，后文实验中称为 halo）”的方法，支持设计师设定的对齐、规律性和间距约束。这有效地为后续极其占地的波导交叉保留了必要的留白（whitespace），生成了具有极高可布线性（routability）的初始位置。</p>
+<h4>2.3 布线层级：OptoSynthesizer-Route</h4>
+<p>针对包含数千个网络（nets，即需要连接的节点集合）的电路，作者采用了 LiDAR 系列工具完成布线。
+这里的约束条件极其严苛：光波导通常被限制在单一的硅层上（必须平面布线或插入带损耗的交叉元件），而电气布线也只有少数几层金属。LiDAR 采用了一种层次化的、感知曲线的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mi>A</mi><mo>⋆</mo></msup></mrow></math></span> 寻路框架。它能够根据不同的波导弯曲半径和间距要求，自动规划布线资源以插入波导交叉并留出端口逃逸路线，生成几乎无 DRV（原文未说明全称）的真实 GDS 布局。对于金属层的电布线，它采用“逃逸布线（将引脚和焊盘引出阻塞区） <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>→</mo></mrow></math></span> 轨道分配 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>→</mo></mrow></math></span> 详细布线”的多阶段全局规划策略，实现了针对毫米级引脚到 I/O（原文未说明全称）连接的极高布线速度。</p>
+<h4>2.4 评估闭环：布局后/制造后评估与协同优化 (DSTCO)</h4>
+<p>这一步是连接物理设计与系统架构的关键。传统流程往往将布局引起的相位误差单纯视为需要通过更严格几何匹配来解决的问题。而本文提出，主动校准（active calibration，通过给相移器加热来改变局部折射率，从而调节光相位）是光电电路部署时必须具备的自由度。</p>
+<p>在跨层接口上，OptoSynthesizer 将最终的物理布局转换回可评估的电路抽象（post-layout netlist）。它将连绵的波导拆解为标准的构建块（弯曲、直通波导、交叉），并利用数字孪生预测的“制造后（可选带有 ILT 修正效果的）S 参数模型”对其进行标注。
+接着，进入<strong>布局后相位校准步骤（post-layout phase-calibration）</strong>。系统会在网表中注入热串扰模型，模拟真实的片上热环境，然后对主动相移器进行调谐。最后，将带有制造变异、热串扰和校准状态的网络导出为兼容 GDSFactory 的表示，并送入 SAX（原文未说明全称）等开源插件中评估整体电路行为。这一闭环允许设计师在早期探索“布局密度、工艺鲁棒性和校准功耗开销”之间的跨层权衡（即设备-技术-系统协同优化，DSTCO, device-technology-system co-optimization）。</p>
+<h3>3. 实验评估与案例分析 (Evaluation)</h3>
+<p>作者通过三个递进的实验案例验证了该框架的有效性。在接下来的图表数据中，涉及的核心数学符号是 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">|</mo><msub><mi>S</mi><mrow><mn>21</mn></mrow></msub><msup><mo stretchy="false">|</mo><mn>2</mn></msup></mrow></math></span>、<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">|</mo><msub><mi>S</mi><mrow><mn>31</mn></mrow></msub><msup><mo stretchy="false">|</mo><mn>2</mn></msup></mrow></math></span>、<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">|</mo><msub><mi>S</mi><mrow><mn>12</mn></mrow></msub><msup><mo stretchy="false">|</mo><mn>2</mn></msup></mrow></math></span> 和 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">|</mo><msub><mi>S</mi><mrow><mn>41</mn></mrow></msub><msup><mo stretchy="false">|</mo><mn>2</mn></msup></mrow></math></span> 等。原文未说明这些符号中字母 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>S</mi></mrow></math></span> 的具体含义，未说明下标（如 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>21</mn></mrow></math></span>、<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>31</mn></mrow></math></span> 等）的具体指代，也未说明其物理单位。</p>
+<h4>3.1 案例一：构建鲁棒的逆向设计光子 PDK</h4>
+<p>作者测试了在 193 nm DUV 工艺下，ILT 技术对几种逆向设计器件（弯曲波导、交叉、光二极管、1 分 3 分束器等）性能的恢复能力（见原文表 1）。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2604.15493#page=4"><img src="figures/openalex-w7154948161/table-1.png" alt="Table 1: Performance and yield improvement from photonic" loading="lazy"></a><figcaption>Table 1 · <a href="https://arxiv.org/pdf/2604.15493#page=4">原文 PDF 第 4 页</a></figcaption></figure>
+<ul>
+<li><strong>现象与原因：</strong> 在没有任何保护措施（w/o ILT）的情况下，逆向设计的器件制造后性能极其惨烈。例如 1 分 3 分束器的理想 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">|</mo><msub><mi>S</mi><mrow><mn>21</mn></mrow></msub><msup><mo stretchy="false">|</mo><mn>2</mn></msup></mrow></math></span> 应为 0.332，但制造后暴跌至 0.089，90% 良率准则下的合格率直接归零（0%）。原因是逆向设计的复杂边界在光刻中被严重磨圆。</li>
+<li><strong>解决方案与结果：</strong> 采用本文基于 PRISM 的 ILT 修正后，掩模被预先扭曲，使得晶圆上印出的实际图形能够维持原有的光学功能。分束器的制造后 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo stretchy="false">|</mo><msub><mi>S</mi><mrow><mn>21</mn></mrow></msub><msup><mo stretchy="false">|</mo><mn>2</mn></msup></mrow></math></span> 恢复到了 0.312，良率提升到了 90%。原文图 4 直观展示了一个 Y 型分支器（Y-branch），ILT 技术显著降低了掩模-晶圆的不匹配，将目标透射率从 0.295 拉升至 0.484（接近设计目标的 0.487）。<figure class="paper-figure"><a href="https://arxiv.org/pdf/2604.15493#page=4"><img src="figures/openalex-w7154948161/figure-4.png" alt="Figure 4: Y-branch comparison with and without PRISM-based                                                                 Metrics        Schematic   Post-fab    W/ ILT    W/ ILT &amp; Phase matching" loading="lazy"></a><figcaption>Figure 4 · <a href="https://arxiv.org/pdf/2604.15493#page=4">原文 PDF 第 4 页</a></figcaption></figure></li>
+</ul>
+<h4>3.2 案例二：热感知的布局可行性探索</h4>
+<p>此案例测试了布局引擎 Apollo 对热串扰（thermal crosstalk）的控制能力（参考原文图 5 及其约束）。热相移器非常敏感，靠得太近会导致彼此的热量干扰。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2604.15493#page=4"><img src="figures/openalex-w7154948161/figure-5.png" alt="Figure 5: Proper placement constraints ensure high PIC layout                                                      require only a tiny waveguide-length difference (e.g., on the order of" loading="lazy"></a><figcaption>Figure 5 · <a href="https://arxiv.org/pdf/2604.15493#page=4">原文 PDF 第 4 页</a></figcaption></figure>
+<ul>
+<li><strong>方法：</strong> 作者通过调整相移器的“halo”（在布局阶段人为在器件外围添加的膨胀尺寸，以强迫算法拉开器件间距）来观察系统表现。</li>
+<li><strong>结果分析（原文表 2）：</strong> 作者使用了一个名为 ADEPT_16x16 的电路。随着相移器 halo 大小 <code>[h_x, h_y]</code>（原文未说明下标 <code>x</code> 和 <code>y</code> 的具体含义，未说明单位）从 <code>[0, 0]</code> 增加到 <code>[100, 45]</code>，热串扰系数的平均值（Mean Crosstalk Coef.）从 2.02E-03 显著下降到 3.84E-04，输出分布的归一化均方误差（NMSE, normalized MSE，原文未说明 MSE 全称及具体计算方式和评价标准）也从 0.196 降至 0.012。<figure class="paper-figure"><a href="https://arxiv.org/pdf/2604.15493#page=4"><img src="figures/openalex-w7154948161/table-2.png" alt="Table 2: Thermal crosstalk and routability of ADEPT_16×16" loading="lazy"></a><figcaption>Table 2 · <a href="https://arxiv.org/pdf/2604.15493#page=4">原文 PDF 第 4 页</a></figcaption></figure></li>
+<li><strong>权衡（Trade-off）：</strong> 结果揭示了一个深刻的物理设计权衡：极小或极大的 halo 都会损害可布线性（routability）。没有 halo 导致局部极度拥挤（布通率仅 83.72%）；halo 过大则占据了太多空白区域，挤压了其他波导的走线空间（布通率从 100% 降回 94.98%）。这证明了该框架能够帮助设计师在早期快速找到热隔离与空间资源的平衡点。</li>
+</ul>
+<h4>3.3 案例三：布局后光子电路性能优化</h4>
+<p>该案例在一个 Clements_16x16 阵列（一种对工艺偏差和相位失配极其敏感的相干计算电路架构）上，演示了联合校准优化的重要性（原文图 6 展示了完整的 GDS 布局生成结果）。</p><figure class="paper-figure"><a href="https://arxiv.org/pdf/2604.15493#page=4"><img src="figures/openalex-w7154948161/figure-6.png" alt="Figure 6: Visualization of OptoSynthesizer-generated complete" loading="lazy"></a><figcaption>Figure 6 · <a href="https://arxiv.org/pdf/2604.15493#page=4">原文 PDF 第 4 页</a></figcaption></figure>
+<ul>
+<li><strong>结果对比（原文表 3）：</strong> 该表格对比了各种条件下的电路总输出光强（Total intensity）和分布误差（Distr. deviation, NMSE）。
+<ul>
+<li>在理想原理图中，总光强为 0.884，分布误差为 0.00。</li>
+<li>在考虑制造偏差（Post-fab）后，光强跌至 0.124，分布出现偏差（NMSE = 9.49E-01）。</li>
+<li>仅加入 ILT（W/ ILT）可以恢复光学传输的通畅度，将总光强拉回 0.869。<strong>核心发现：</strong> 然而，分布误差依然巨大（1.36E+00）。因为 ILT 无法精确控制波导路径上累积的微小光学相位误差（光波长极短，10 纳米的长度偏差就能颠覆相位）。</li>
+<li>当同时采用 ILT 并在数字孪生中开启“相位匹配（Phase matching）”校准时，总光强保持 0.869 的同时，分布误差骤降至 3.26E-04，电路功能得以充分恢复（原文表述为 fully restored）。</li>
+</ul>
+</li>
+<li><strong>结论意义：</strong> 这一结果论证了架构与 EDA 协同设计中的一个关键结论：对于密集的光电布局，单靠 EDA 几何手段（调整线长）去强行保证相位完全一致是不切实际且极易被工艺变异破坏的；必须将“物理布局”与运行时的“主动相移器校准”联合协同优化。</li>
+</ul>
+<h3>4. 总结线索与局限性 (Main Thread &amp; Limitations)</h3>
+<p><strong>全文主线：</strong>
+这篇文章的起点是光电混合计算架构（EPIC）在扩展时遇到的物理制造瓶颈——逆向设计生成的光学器件尺寸虽小但极度“脆弱”，且现有的 EDA 工具在处理光信号极其敏感的布线和间距约束时无能为力，导致“设计出来却造不出来，或者造出来无法正常工作”。
+为解决这一问题，作者并非简单地修补单一工具，而是打通了从底层物理制造到上层电路逻辑的整条链路，构建了 OptoSynthesizer 框架。它通过“物理增强的数字孪生”将晶圆厂的制造变异提前引入到器件设计（InvDes）阶段，用专为光学的特性（曲线、方向性、热串扰）定制的规则驱动自动布局和布线（Apollo/LiDAR），最后建立一个反馈闭环，在软件仿真中模拟实际芯片通电后利用相移器“修补”制造误差的校准过程。最终实现了设计阶段即可预测并保证高良率的目标。</p>
+<p><strong>关键假设与局限性：</strong></p>
+<ol>
+<li>该流程的成功极度依赖于<strong>制造数字孪生（Hopkins 光刻模型等）的精确性</strong>。如果实际晶圆厂的复杂蚀刻化学效应偏离了所训练的模型，预测的 S 参数将失效。</li>
+<li>在电路恢复（案例三）中，框架隐含了一个关键假设：<strong>系统拥有足够的能源预算和控制引脚来实施广泛的“主动相位校准”</strong>。大量的相移器加热会带来显著的静态功耗，这对于极度追求能效的 AI 加速器架构来说，是一个必须在系统层面进一步权衡的代价。该结论不应被过度推广为“只要有了主动校准，布局就可以随意进行”。</li>
+</ol>
+</div></td></tr></table></body></html>
