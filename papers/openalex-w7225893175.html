@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SoftClay3D: Exploring Intra-Module Partitioning with True-3D Floorplan and Placement Engines · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>SoftClay3D: Exploring Intra-Module Partitioning with True-3D Floorplan and Placement Engines</h1><p class="paper-note">Yifan Chen, Zixiao Wang, Zhe Liu, Ke Xu, Meng Li, B. X. Yu, Runsheng Wang, Yibo Lin · IEEE Transactions on Computer-Aided Design of Integrated Circuits and Systems · 2026 · <a href="https://doi.org/10.1109/tcad.2026.3753179">原文</a> · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C248-ASPDAC2025-SurChiplet.pdf">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>这是一篇发表于 ASPDAC 2025 的综述文章《The Survey of 2.5D Integrated Architecture: An EDA perspective》。文章从电子设计自动化（EDA）的视角，系统性地回顾了基于芯粒（Chiplet）的 2.5D 集成架构的设计方法、当前面临的挑战以及未来的发展方向。</p>
+<p>以下是按文章逻辑顺序进行的详细解读。</p>
+<h3>1. 引言 (Introduction)</h3>
+<p><strong>问题背景</strong>
+长期以来，集成电路（IC，Integrated Circuit）行业一直遵循摩尔定律（Moore's Law，原文未说明其具体内容，仅指出技术进步使得能在单个裸片上集成更多晶体管，从而提升性能并降低成本）。然而，随着晶体管尺寸逼近物理极限，传统的单片系统（SoC，System-on-Chip，即将所有功能模块集成在同一块硅片上）面临着严重的瓶颈。首先，物理限制导致在单位面积内塞入更多晶体管变得极其困难；其次，先进光刻系统的制造成本急剧上升；最关键的是，随着芯片面积增大，硅晶圆的制造良率（Yield，原文未定义其具体含义）显著下降，导致成本收益无法维持。</p>
+<p><strong>核心概念与系统全貌</strong>
+为了解决上述问题，业界提出了**芯粒（Chiplet）**与 <strong>2.5D 集成架构</strong>。</p>
+<ul>
+<li><strong>Chiplet（芯粒）</strong>：将原本庞大的单片 SoC 拆分成多个具有特定功能（如计算、存储、接口）的独立小芯片模块。</li>
+<li><strong>2.5D 集成架构</strong>：这是一种介于传统 2D（单片）和 3D（芯片垂直堆叠，存在严重散热问题）之间的封装技术。作者在<strong>图 1</strong> 中展示了其物理结构：多个 Chiplet 并排贴装在一个被称为**中介层（Interposer，通常是硅材质）**的基板上。中介层内部包含高密度的布线（Routing），用于实现芯粒间的高速通信。中介层再通过硅通孔（TSV，原文未定义其具体结构，仅说明用于将中介层连接到封装基板）和微凸块（u-Bump）连接到下方的封装基板（Package），最终通过 BGA（原文未说明全称及中文翻译）连接到外部主板。台积电的 CoWoS（Chip-on-Wafer-on-Substrate）就是这种技术的典型代表。<figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C248-ASPDAC2025-SurChiplet.pdf#page=1"><img src="figures/openalex-w7225893175/figure-1.png" alt="Figure 1: The architecture of chiplet-based 2.5D IC" loading="lazy"></a><figcaption>Figure 1 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C248-ASPDAC2025-SurChiplet.pdf#page=1">原文 PDF 第 1 页</a></figcaption></figure></li>
+</ul>
+<p><strong>EDA 的关键作用</strong>
+电子设计自动化（EDA）工具是实现 2.5D 架构的核心。作者在<strong>图 2</strong> 中展示了 2.5D 架构的 EDA 流程，数据与控制在其中自上而下流动：</p><figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C248-ASPDAC2025-SurChiplet.pdf#page=2"><img src="figures/openalex-w7225893175/figure-2.png" alt="Figure 2: The EDA flow of the chiplet-based architecture.                       fits for serving large generative language models compared to tra-" loading="lazy"></a><figcaption>Figure 2 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C248-ASPDAC2025-SurChiplet.pdf#page=2">原文 PDF 第 2 页</a></figcaption></figure>
+<ol>
+<li><strong>前端流程（Front-end Flow）</strong>：从设计规格出发，进行架构设计、功能仿真、功耗与成本分析。</li>
+<li><strong>芯粒间通信（Inter-Chiplet Communication）</strong>：决定如何将系统划分（Partition）为多个芯粒，并设计它们之间的互连（Interconnection）。</li>
+<li><strong>后端流程（Back-end Flow，即物理设计）</strong>：包括布图规划（Floorplan）、布局（Placement）、重布线层布线（RDL Routing）、多物理场建模（Multiphysics Modeling）和可靠性分析。</li>
+</ol>
+<h3>2. 芯粒的架构设计 (Architecture Design of Chiplet)</h3>
+<p>本节主要讨论在架构探索阶段，EDA 工具如何评估和优化 2.5D 系统的宏观指标。</p>
+<p><strong>2.5D 架构的优势与应用</strong>
+相比于 2D SoC，2.5D 架构具有三大优势：</p>
+<ol>
+<li><strong>更高的良率</strong>：芯粒面积小，制造缺陷落入单个芯粒的概率降低，从而提高了相同晶圆预算下的可用芯片数量。</li>
+<li><strong>模块化设计</strong>：可以将不同工艺节点（Technology Nodes）的芯粒混合封装。例如，核心计算模块使用昂贵的先进工艺，而 I/O 或模拟模块使用成熟廉价的工艺，从而实现成本效益最大化。</li>
+<li><strong>设计效率</strong>：经过验证的芯粒可以作为硬件知识产权（IP）被复用，像“搭乐高”一样快速构建新产品，缩短上市时间。
+这种架构特别适用于需要大规模并行处理和高带宽的场景，如深度神经网络（DNN）加速器和大型语言模型（LLM）推理。</li>
+</ol>
+<p><strong>仿真、功耗与成本分析</strong>
+在架构早期，必须对系统进行仿真。但目前的 EDA 仿真工具面临挑战：它们通常无法准确建模芯粒间复杂的交互协议，也缺乏对异构工艺节点混合仿真的支持。在功耗分析方面，由于芯粒系统包含在不同工作负载下运行的异构组件，传统的静态或动态功耗模型（如 McPAT）需要结合机器学习（ML）技术进行校准，以适应新的工艺节点。</p>
+<p>在成本分析方面，作者引用了<strong>图 3</strong>。该图展示了在不同制造工艺节点下，芯片面积与成本、良率的关系。图表清晰地证明了一个核心逻辑：芯片面积越大，良率下降越快，导致成本呈指数级上升；而将大芯片拆分为小面积的芯粒，可以显著拉平成本曲线。这里的成本分为非经常性工程（NRE）成本（如研发、掩膜制作等一次性投入）和经常性工程（RE）成本（如晶圆制造、封装等持续支出）。2.5D 架构的成本模型必须综合考虑这两者。</p><figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C248-ASPDAC2025-SurChiplet.pdf#page=3"><img src="figures/openalex-w7225893175/figure-3.png" alt="Figure 3: The relationship between cost, yield, and chip area" loading="lazy"></a><figcaption>Figure 3 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C248-ASPDAC2025-SurChiplet.pdf#page=3">原文 PDF 第 3 页</a></figcaption></figure>
+<p><strong>架构设计空间探索 (DSE, Design Space Exploration)</strong>
+<strong>体系结构与 EDA 的双向联系在此处初步显现。</strong> 架构师需要决定芯粒的划分粒度（Granularity）。如果划分得太细，虽然良率和灵活性提高了，但会引入巨大的裸片间（die-to-die）通信延迟和功耗开销。这种架构侧的决策必须与 EDA 优化相联系。具体而言，跨层接口中传递的量为硬件设计配置（hardware design configurations），目标为 PPA（性能 Performance、功耗 Power、面积 Area）；在建模假设上，分析方法旨在创建描述硬件设计配置与 PPA 之间关系的轻量级、可解释模型；但在信息损失与局限性方面，这些方法通常需要广泛的领域知识，并在准确性（accuracy）和可扩展性（scalability）上面临限制。为了在庞大的设计空间中进行快速探索与设计空间修剪（原文未证明能找到全局最优解），研究人员开发了基于分析模型和基于机器学习（如强化学习，用于系统性探索芯片配置）的 DSE 工具。</p>
+<h3>3. 芯粒的划分与互连 (Partition and Interconnection of Chiplet)</h3>
+<p>本节探讨如何将逻辑系统物理化为多个芯粒，并让它们高效通信。</p>
+<p><strong>划分与组合 (Partition and Combination)</strong>
+作者通过<strong>图 4</strong> 展示了这一过程。划分的目标是将传统的单片 SoC 拆分为独立的芯粒模块。这在算法上通常被建模为超图划分（Hypergraph Partitioning）问题，其目标函数是最小化芯粒间的通信开销，约束条件是资源均衡和热分布。组合阶段则是将自研芯粒与第三方 IP 芯粒集成在一起。随着系统异构性增加，未来的 EDA 工具需要在划分阶段就提前引入热管理和机械应力的约束，这要求架构设计与物理效应进行跨层协同。</p><figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C248-ASPDAC2025-SurChiplet.pdf#page=5"><img src="figures/openalex-w7225893175/figure-4.png" alt="Figure 4: Illustration of partitioning and combining in chiplet-based architecture" loading="lazy"></a><figcaption>Figure 4 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C248-ASPDAC2025-SurChiplet.pdf#page=5">原文 PDF 第 5 页</a></figcaption></figure>
+<p><strong>互连与通信 (Interconnection and Communication)</strong>
+芯粒取代了单片设计后，原本在芯片内部的极速数据流变成了跨芯片的数据流。为了解决异构芯粒间的通信壁垒，业界推出了标准化的通信协议，如 <strong>UCIe（unified chiplet interconnect express，原文未提供中文翻译）</strong>。UCIe 提供了一个统一的接口规范，使得不同代工厂、不同工艺制造的芯粒能够互相理解。此外，还有 USR（ultra-short reach，原文未提供中文翻译）和 BoW（Bunch-of-Wires）等协议。在网络拓扑和路由算法方面，EDA 工具需要根据架构侧的流量特征（如 DNN 的数据复用模式），动态分配布线资源，甚至引入硅光子互连（Optical Communication）来满足极高的带宽需求。</p>
+<h3>4. 基于芯粒架构的物理设计 (Physical Design of Chiplet-based Architecture)</h3>
+<p>物理设计是 EDA 的核心后端流程，负责将逻辑网表转化为可制造的几何版图。作者在<strong>表 1</strong> 中总结了该领域的近期研究。</p><figure class="paper-figure"><a href="https://www.cse.cuhk.edu.hk/~byu/papers/C248-ASPDAC2025-SurChiplet.pdf#page=6"><img src="figures/openalex-w7225893175/table-1.png" alt="Table 1: The Research Works of Physical Design" loading="lazy"></a><figcaption>Table 1 · <a href="https://www.cse.cuhk.edu.hk/~byu/papers/C248-ASPDAC2025-SurChiplet.pdf#page=6">原文 PDF 第 6 页</a></figcaption></figure>
+<p><strong>布图规划与布局 (Floorplan and Placement)</strong>
+<em>概念澄清</em>：在传统 SoC 的 EDA 流程中，“布局”指的是在芯片内部放置标准单元（Standard Cells）；但在 2.5D 架构中，本文的“布局”或“布图规划”指的是<strong>决定各个芯粒在中介层上的具体物理位置</strong>。
+<strong>体系结构与 EDA 的深度耦合</strong>：芯粒的物理位置直接决定了它们之间的连线长度，进而决定了通信延迟（影响架构性能）和热量聚集（影响系统可靠性）。布局算法通常分为三类：</p>
+<ol>
+<li><strong>启发式方法</strong>：如模拟退火（SA，Simulated Annealing，原文未提供背景补充）和分支定界（B&amp;B）。这些方法使用特定的数据结构（如序列对 Sequence Pair）表示芯粒位置，以面积、线长和热应力为代价函数进行迭代优化。</li>
+<li><strong>数学解析优化</strong>：将布局转化为带有约束的数学规划问题，能够处理复杂的密度和可靠性约束，但求解耗时较长。</li>
+<li><strong>机器学习方法</strong>：利用强化学习（RL）或图神经网络（GNN）来快速评估热分布并决定芯粒的放置顺序，以应对未来包含数十个小芯粒的大规模系统。</li>
+</ol>
+<p><strong>重布线层与布线 (RDL and Routing)</strong>
+**RDL（Redistributed Layer，重布线层）**是中介层上用于连接不同芯粒的金属布线层。由于 2.5D 封装的走线比单片芯片内部的走线长得多，会产生显著的寄生电感和电容效应（RLC 延迟）。EDA 布线工具不仅要寻找最短路径，还必须执行“协同优化”：考虑信号线的宽度、间距，甚至支持任意角度布线，以保护高速信号的完整性。</p>
+<p><strong>多物理场仿真 (Multiphysics Simulation)</strong>
+2.5D 封装将多个高功耗芯粒密集挤在一起，导致严重的焦耳热（Joule Heating）现象。热量不仅会降低晶体管性能，还会引起材料的热膨胀，产生机械应力（导致芯片翘曲 Warpage）。因此，必须进行电、热、力多物理场耦合仿真。传统的有限元分析（FEA，原文未提供背景补充）虽然精确但极其耗时。目前的 EDA 研究趋势是开发紧凑热模型（CTM）或利用 graph convolutional network（原文未提供缩写及中文翻译）等 AI 技术，根据全局功耗特征快速预测热分布图（Thermal Map）。</p>
+<p><strong>其他主题 (SI/PI 与 PDN)</strong></p>
+<ul>
+<li>**SI（Signal Integrity，信号完整性）**与 <strong>PI（Power Integrity，电源完整性）</strong>：评估高速信号在复杂互连中是否会失真。</li>
+<li><strong>PDN（Power Distribution Network，供电网络）</strong>：由于芯粒数量多，如何将稳定的电压通过中介层均匀分配给各个芯粒是一个巨大的挑战。目前有研究利用深度强化学习来探索庞大的 PDN 设计空间。</li>
+</ul>
+<h3>5. 挑战与未来方向 (Challenges and Future Directions)</h3>
+<p>作者指出，目前的商业 EDA 工具大多是为单片芯片设计的，在应对 2.5D 架构时存在明显局限：</p>
+<ol>
+<li><strong>缺乏全局视角</strong>：现有的工具多为“单点工具”（Single-point tools），无法提供涵盖电、磁、热、力的综合性集成反馈平台。</li>
+<li><strong>计算瓶颈</strong>：早期的多物理场建模依赖密集的数学计算，严重拖慢了设计迭代速度。</li>
+<li><strong>规则检查与验证困难</strong>：2.5D IC 的 design rule checks（原文未提供缩写及中文翻译）远比单片复杂，且传统的逻辑验证方法往往忽略了芯粒间共享资源的通信死锁等问题，容易导致流片失败。
+未来的 EDA 工具必须增强跨域仿真的互操作性，并深度融合机器学习以提供实时反馈。</li>
+</ol>
+<h3>6. 结论 (Conclusion)</h3>
+<p>文章总结了 2.5D 芯粒架构在性能、功耗和面积效率上的巨大潜力，并重申了 EDA 在仿真、物理设计和多物理场建模中的决定性作用。随着 AI 技术的融入，EDA 工具将更好地应对 2.5D 集成的复杂性。</p>
+<hr />
+<h3>贯穿全文的主线与批判性分析</h3>
+<p><strong>主线逻辑</strong>：
+这篇文章的叙事主线是**“物理极限逼迫架构转型，架构转型倒逼 EDA 升级”**。
+最初，半导体行业遇到了摩尔定律失效的问题（单片芯片太大导致良率崩溃、成本失控）。为了解决这个问题，业界引入了 2.5D 芯粒架构（将大芯片化整为零，通过中介层重新拼接）。然而，这种物理形态的改变打破了传统 EDA 工具的假设前提：原本在芯片内部的微观连线变成了跨芯片的宏观连线，原本均匀散热的单片变成了热量高度集中的异构集合体。因此，文章一步步引出了 EDA 在系统划分、互连协议（UCIe）、物理布局、RDL布线以及多物理场耦合仿真等各个环节必须做出的技术革新，最终目标是实现一个高度自动化、能处理跨层物理效应的下一代 EDA 平台。</p>
+<p><strong>关键假设、局限与过度推广的警告</strong>：</p>
+<ol>
+<li><strong>标准化互连的假设</strong>：文章在讨论互连时，指出 UCIe 等协议通过提供统一接口来简化异构芯粒的集成，确保跨不同制造工艺和技术节点的兼容性。然而，原文并未讨论不同厂商的商业壁垒或 IP 封装格式差异等实际操作中的互操作性挑战（原文未说明）。</li>
+<li><strong>机器学习的泛化能力局限</strong>：文章多次提到利用 ML（强化学习、图神经网络）来加速 DSE、布局或热仿真。但必须警惕，这类 ML 模型通常严重依赖训练数据；针对某一种 2.5D 架构训练的热预测网络或布局代理模型，如果直接应用于具有不同中介层材料或不同 TSV 分布的新架构，其准确性往往会急剧下降。</li>
+<li><strong>成本效益的适用边界</strong>：虽然图 3 证明了小芯粒能提升良率并降低制造成本，但文章也提到先进封装本身存在高昂的 NRE 成本和技术复杂性。因此，<strong>不能过度推广“2.5D 架构总是更便宜”的结论</strong>。目前，这种技术主要在 AI 加速器、高性能服务器 CPU 等高利润、大面积的芯片中具有明显的成本优势；对于面积本就不大、对成本极度敏感的低端边缘芯片或微控制器，强行采用 2.5D 封装反而会大幅增加总成本。</li>
+</ol>
+</div></td></tr></table></body></html>
