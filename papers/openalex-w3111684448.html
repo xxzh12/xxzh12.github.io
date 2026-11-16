@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IntAct: A 96-Core Processor With Six Chiplets 3D-Stacked on an Active Interposer With Distributed Interconnects and Integrated Power Management · Yuhao Ji</title>
+<link rel="stylesheet" href="../css/jemdoc.css">
+<link rel="stylesheet" href="../css/myMiddle.css">
+<style>
+#tlayout { width: 100%; table-layout: fixed; }
+#layout-content { width: auto; }
+.paper-note { color: #555; font-size: .94em; line-height: 1.5; }
+.paper-banner { border-left: 4px solid #527bbd; background: #f4f7fb; padding: .7em 1em; margin: 1em 0; }
+.paper-warning { border-left: 4px solid #b33; background: #fff3f3; padding: .7em 1em; margin: 1em 0; }
+.paper-card { border: 1px solid #ddd; padding: 1em; margin: 1em 0; line-height: 1.55; }
+.paper-card h2 { margin-top: 0; }
+.paper-report p { line-height: 1.7; margin: .65em 0; }
+.paper-exhibit { border-left: 3px solid #aaa; padding-left: .8em; margin: .8em 0; }
+.paper-report details { margin: 1em 0; }
+.paper-report .math.block { overflow-x: auto; margin: .6em 0; }
+.paper-report .math-error { color: #a33; }
+.paper-figure { margin: 1.1em auto 1.6em; max-width: 720px; text-align: center; }
+.paper-figure img { display: block; max-width: 100%; height: auto; margin: auto; border: 1px solid #ddd; }
+.paper-figure figcaption { color: #555; font-size: .9em; margin-top: .4em; }
+</style>
+</head><body><table id="tlayout"><tr valign="top">
+<td id="layout-menu"><nav aria-label="Site navigation"><div class="menu-item"><a href="../index.html">Home</a></div><div class="menu-item"><a href="../papers/index.html">Daily Papers</a></div></nav></td>
+<td id="layout-content"><p><a href="index.html">← Daily Papers</a></p><div class="paper-warning">本报告由大模型自动生成，可能存在理解、归纳或数据转述错误；请以原论文为准。</div><h1>IntAct: A 96-Core Processor With Six Chiplets 3D-Stacked on an Active Interposer With Distributed Interconnects and Integrated Power Management</h1><p class="paper-note">Pascal Vivet, Èric Guthmuller, Yvain Thonnart, Gaël Pillonnet, César Fuguet, Ivan Miro-Panades, Guillaume Moritz, Jean Durupt, Christian Bernard, Didier Varreau, Julian J. H. Pontes, Sébastien Thuries, David Coriat, Michel Harrand, Denis Dutoit, Didier Lattard, Lucile Arnaud, Jean Charbonnier, P. Coudrain, Arnaud Garnier, Frederic Berger, Alain Gueugnot, Alain Greiner, Quentin L. Meunier, A. Farcy, Alexandre Arriordaz, Severine Cheramy, Fabien Clermidy · IEEE Journal of Solid-State Circuits · 2020 · <a href="https://doi.org/10.1109/jssc.2020.3036341">原文</a> · <a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf">PDF</a></p><p class="paper-note"></p><p class="paper-note">报告模型：gemini-3.1-pro-preview / high</p><div class="paper-report"><p>本文详细介绍了一篇题为《IntAct: A 96-Core Processor With Six Chiplets 3D-Stacked on an Active Interposer With Distributed Interconnects and Integrated Power Management》的集成电路与计算机体系结构领域的顶级论文。该文章介绍了一个名为 <strong>IntAct</strong> 的 96 核芯片原型，其核心创新在于采用了一块<strong>有源中介层（Active Interposer）<strong>来垂直堆叠 6 个计算</strong>芯粒（Chiplet）</strong>。</p>
+<p>下面将按文章的逻辑结构，为您逐章节进行详细、连贯的解析。</p>
+<hr />
+<h3>一、 背景与概念定义 (引言部分)</h3>
+<p>为了理解本文解决的问题，首先需要建立以下基本背景和术语定义：</p>
+<ul>
+<li><strong>背景补充：摩尔定律放缓与芯粒（Chiplet）技术：</strong> 在先进制程（如 7nm 及以下）中，制造超大面积的单片系统级芯片（SoC）会面临极低的良率和高昂的掩膜成本。此外，模拟电路（如电源管理、高速 I/O 接口）很难随数字逻辑同比例缩小。因此，业界提出将大系统拆分成多个较小的模块，称为<strong>芯粒（Chiplet）</strong>。只有通过测试的“已知良好裸片（KGD, Known Good Die）”才会被组装在一起，从而大幅降低成本。</li>
+<li><strong>中介层（Interposer）：</strong> 将多个芯粒连接在一起的底层基板。目前主流使用的是<strong>无源中介层（Passive Interposer）</strong>，例如 TSMC 的 CoWoS 技术。无源中介层仅包含金属连线（Wire-only），没有晶体管，它不能进行逻辑计算或信号放大。</li>
+<li><strong>论文面临的核心问题：</strong> 无源中介层虽然解决了基本互连问题，但存在三大局限：第一，长距离通信会导致信号衰减，必须在芯粒内部进行信号中继，这不利于系统扩展；第二，难以平滑集成具有不兼容接口的不同芯粒；第三，无法将电源管理单元和全局系统 I/O 等难以缩小的模拟功能剥离出先进计算芯粒。</li>
+<li><strong>本文的解决方案——有源中介层（Active Interposer）：</strong> 作者提出在面积庞大的中介层中制造晶体管逻辑。这使得中介层不仅能布线，还能集成分布式片上网络（NoC）、电源管理单元（集成稳压器）和系统测试架构。由于面积大，有源中介层必须采用成熟的低成本、高良率工艺。</li>
+</ul>
+<h3>二、 IntAct 芯片与系统架构设计 (论文第二、三节)</h3>
+<p>作者首先明确了硬件约束和作者自己的设计选择（技术分区）。为了在性能与成本之间取得平衡，作者做出了<strong>跨代工艺的技术分区选择</strong>：</p>
+<ol>
+<li><strong>计算芯粒（Chiplet）：</strong> 采用先进的 <strong>28nm FDSOI</strong>（原文未说明 FDSOI 的缩写含义）工艺制造。本文定义的<strong>Chiplet</strong>是指一块面积为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>22.4</mn><msup><mtext>mm</mtext><mn>2</mn></msup></mrow></math></span>、包含 16 个处理核心的独立裸片。</li>
+<li><strong>有源中介层（Active Interposer）：</strong> 采用成熟廉价的 <strong>65nm CMOS</strong>（原文未说明 CMOS 的缩写含义）工艺制造。面积高达 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>197.8</mn><msup><mtext>mm</mtext><mn>2</mn></msup></mrow></math></span>。由于采用了成熟工艺且晶体管密度极低（仅 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.08</mn><mtext> 个晶体管</mtext><mo>/</mo><mi>μ</mi><msup><mtext>m</mtext><mn>2</mn></msup></mrow></math></span>），因此能够保证极高的制造良率。</li>
+</ol>
+<p><strong>3D 堆叠的物理结构（图 5）：</strong>
+文章展示了多层物理封装结构。数据和电源在这些层级间自下而上流动：</p><figure class="paper-figure"><a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf#page=5"><img src="figures/openalex-w3111684448/figure-5.png" alt="Figure 5: INTACT : from concept to 3D-cross section" loading="lazy"></a><figcaption>Figure 5 · <a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf#page=5">原文 PDF 第 5 页</a></figcaption></figure>
+<ul>
+<li>最底层是 10 层的有机封装基板。</li>
+<li>基板上方通过 <strong>C4 凸块（C4-bumps）</strong>（原文未说明 C4 的缩写含义）（直径 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>90</mn><mi>μ</mi><mtext>m</mtext></mrow></math></span>，间距 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>200</mn><mi>μ</mi><mtext>m</mtext></mrow></math></span>）连接有源中介层的背面。</li>
+<li>有源中介层内部含有 <strong>TSV（硅通孔，Through Silicon Via）</strong>（直径 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>10</mn><mi>μ</mi><mtext>m</mtext></mrow></math></span>，高度 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>100</mn><mi>μ</mi><mtext>m</mtext></mrow></math></span>），负责将封装底部的电源和外部 I/O 信号贯穿拉接到中介层正面。</li>
+<li>有源中介层正面通过高密度的 <strong><span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>μ</mi></mrow></math></span>-bumps（微凸块）</strong>（直径 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>10</mn><mi>μ</mi><mtext>m</mtext></mrow></math></span>，间距 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>20</mn><mi>μ</mi><mtext>m</mtext></mrow></math></span>）与 6 个计算芯粒进行“面对面（Face-to-Face）”的直接键合。全芯片共使用了 15 万个微凸块。</li>
+</ul>
+<h3>三、 计算芯粒架构与内存层次 (论文第四节)</h3>
+<p>这部分解释了分布在各个芯粒上的 96 个核心是如何组织和协作的。</p>
+<ul>
+<li><strong>计算集群（Cluster）与瓦片（Tile）的定义：</strong> 在本文的设计中，每个 16 核的芯粒被划分为 4 个 <strong>Cluster（计算集群）</strong>。每个 Cluster 包含 4 个 32 位标量核心（兼容 MIPS32v1（原文未说明其具体含义）指令集）、各自私有的 L1 缓存以及一个共享的 256KB 分布式 L2 缓存。**Tile（瓦片）**在本文中特指 L3 缓存单元，每个芯粒包含 4 个 1MB 的 L3 Tile，它们作为全局共享的最后一级缓存。</li>
+</ul>
+<p><strong>硬件缓存一致性设计与扩展性：</strong>
+为了支持多核协同，硬件必须保证所有缓存数据的一致性。本文的 L2 缓存采用了基于目录的混合缓存一致性协议（DHCCP, Directory-based Hybrid Cache Coherence Protocol）。
+作者面临的问题是，随着核心数增加，记录“哪个核心拥有哪块数据”的目录存储开销会爆炸。为此，作者做出设计选择：对于少数核心共享的数据，采用<strong>列表模式（List mode）<strong>记录具体的共享者 ID；当共享核心数超过预设阈值（本文设为 4）时，切换为</strong>计数器模式（Counter mode）</strong>，只记录数量，更新时直接在网络中发起广播。这种设计仅用了 2% 的芯片面积就实现了缓存一致性的硬件追踪。结合物理地址的高 8 位来决定数据存储的具体瓦片位置（非统一内存架构（NUMA, Non Uniform Memory Architecture）），这使得整个缓存架构在逻辑上能够扩展至 896 核。</p>
+<h3>四、 集成电压稳压器 (论文第五节)</h3>
+<p>为了给 6 个芯粒独立供电，同时避免引出过多的外部电源引脚，作者在有源中介层中设计了<strong>集成开关电容电压稳压器（SCVR, Switched Capacitor Voltage Regulator）</strong>。</p>
+<ul>
+<li><strong>为什么这么做（背景）：</strong> 传统 SoC 依赖外部（主板上）的电压转换器，需要消耗大量芯片引脚引入低压大电流，且会产生 IR Drop（电阻带来的电压降）。本文将 SCVR 直接做到芯粒正下方的有源中介层中，实现了就近供电。</li>
+<li><strong>设计细节与表 2：</strong> SCVR 采用了并并-串联的 3 级齿轮箱拓扑，可以提供从 4:1 到 4:3 共 7 种无损电压转换比率（无量纲），支持单芯粒级别的动态电压频率调节（DVFS）。由于中介层采用 65nm 工艺，作者利用了 MOS、MOM 和 MIM（原文未说明这三个缩写的具体含义）多层电容堆叠，获得了 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>8.9</mn><msup><mtext> nF/mm</mtext><mn>2</mn></msup></mrow></math></span> 的高电容密度。</li>
+<li><strong>结果说明：</strong> 表 2 和实验数据表明，该 SCVR 在 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>156</mn><msup><mtext> mW/mm</mtext><mn>2</mn></msup></mrow></math></span> 的功率密度下达到了 82% 的峰值转换效率。由于中介层面积大，SCVR 还加入了容错协议，以屏蔽部分失效单元的影响。</li>
+</ul>
+<h3>五、 3D-Plug 通信接口与系统级互连 (论文第六、七节)</h3>
+<p>有源中介层的核心价值在于数据路由。作者设计了名为 **3D-Plug（3D 插头）**的标准化软硬件接口，用于连接芯粒和中介层。</p>
+<ul>
+<li><strong>3D-Plug 是什么：</strong> 它不仅包含物理上的微凸块阵列，还包含了微缓冲单元（包含静电保护 ESD 驱动、跨 1.0V/1.2V 电压域的电平转换器），以及用于边界扫描的测试逻辑。</li>
+<li><strong>片上网络（NoC）的三层划分：</strong> 作者设计了三个维度的网络：
+<ol>
+<li><strong>N1 网络（L1-L2 互连）：</strong> 负责邻近芯粒间的短距离高带宽通信。作者的设计选择是，这部分信号直接穿过同步版本的 3D-Plug，在有源中介层中仅通过被动金属线（不经过晶体管）连接相邻芯粒，延迟极低（7.2 纳秒）。</li>
+<li><strong>N2 网络（L2-L3 互连）：</strong> 负责整个 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>200</mn><msup><mtext>mm</mtext><mn>2</mn></msup></mrow></math></span> 芯片范围内的长距离寻址。在这里，作者做出了一个关键的架构妥协：放弃传统的全局同步时钟。</li>
+<li><strong>N3 网络（L3-外部内存）：</strong> 负责通往芯片外部的同步网络。</li>
+</ol>
+</li>
+</ul>
+<p><strong>异步 3D-Plug 与协议转换（图 16 和图 17）：</strong>
+为了解决大面积中介层上时钟树难以平衡、容易出现时钟偏差的问题，作者在 N2 网络的设计中引入了 <strong>GALS（全局异步局部同步）</strong> 架构。</p><figure class="paper-figure"><a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf#page=10"><img src="figures/openalex-w3111684448/figure-16.png" alt="Figure 16: 3D Plug asynchronous version overview, composed of protocol" loading="lazy"></a><figcaption>Figure 16 · <a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf#page=10">原文 PDF 第 10 页</a></figcaption></figure><figure class="paper-figure"><a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf#page=10"><img src="figures/openalex-w3111684448/figure-17.png" alt="Figure 17: 3D-Plug asynchronous version details, composed of a) 4-phase to 2-" loading="lazy"></a><figcaption>Figure 17 · <a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf#page=10">原文 PDF 第 10 页</a></figcaption></figure>
+<ul>
+<li><strong>推理链条：</strong> 芯粒内部是同步的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>→</mo></mrow></math></span> 中介层长距离通信采用**准延迟不敏感（QDI）**的异步片上网络 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mo>→</mo></mrow></math></span> 因此 3D-Plug 需要做协议转换。</li>
+<li><strong>协议转换细节：</strong> 作者在 3D 接口处使用了 2 相（2-phase）握手协议以减少 3D 垂直往返延迟对吞吐量的惩罚；而在中介层平面内部使用了 4 相（4-phase）协议以简化逻辑。编码方式采用 1-of-N（本文 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi><mo>=</mo><mn>4</mn></mrow></math></span>（无量纲））多轨跃迁信号。这意味着 2 个数据比特被编码在 4 根物理线（即前文提到的 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>N</mi><mo>=</mo><mn>4</mn></mrow></math></span> 的出处）上，任何一根线发生电平跳变（跃迁）即表示传输了一个值，接收端再通过反馈路径确认。这种彻底摒弃全局时钟的设计，使得中介层网络以极低的能量（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.52</mn><mtext> pJ/bit/mm</mtext></mrow></math></span>）跨越了 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>25</mn><mtext>mm</mtext></mrow></math></span> 的距离。</li>
+</ul>
+<h3>六、 测试性与 3D DFT 架构 (论文第八节)</h3>
+<p>3D 集成带来的最头疼的硬件约束之一是<strong>测试</strong>。微凸块（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>20</mn><mi>μ</mi><mtext>m</mtext></mrow></math></span>）太小，现有的探针卡无法在晶圆厂进行物理接触测试。</p>
+<ul>
+<li><strong>作者怎么做：</strong> 作者在芯粒外围额外增加了常规尺寸（<span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>40</mn><mi>μ</mi><mtext>m</mtext></mrow></math></span>）的测试焊盘（图 19，非功能模式下使用），仅用于键合前的 KGD 筛选。<figure class="paper-figure"><a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf#page=12"><img src="figures/openalex-w3111684448/figure-19.png" alt="Figure 19: Chiplet layout (zoom), with 3D-Plug interface and additional test pads       network is used to test and control the 3D active links, the 3D" loading="lazy"></a><figcaption>Figure 19 · <a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf#page=12">原文 PDF 第 12 页</a></figcaption></figure></li>
+<li><strong>DFT（可测性设计）架构：</strong> 整个 3D 芯片集成了一个符合 IEEE 1687（IJTAG）标准的层次化测试链。底层中介层就像一块主板上的 JTAG 链一样，串联了 6 个“芯粒足迹（Chiplet footprints）”。测试机可以通过主 TAP（原文未说明 TAP 的缩写含义）接口，发送压缩的扫描向量，自动对数以万计的 3D 主动链路、被动链路以及各个芯粒内的内存 BIST（内建自测试）引擎进行自动化测试。这解决了 3D 封装后内部互连短路、断路无法排查的行业痛点。</li>
+</ul>
+<h3>七、 架构与 EDA 的跨层协同：热挑战与策略 (论文第九节)</h3>
+<p>本节明确展示了体系结构设计与 EDA（电子设计自动化）工具之间的紧密反馈闭环。</p>
+<ul>
+<li><strong>为什么有问题：</strong> 传统的无源中介层本身不发热。但本文中，底层的有源中介层因为包含了 6 个集成稳压器和异步 NoC 网络，也成为了热源。两层热源叠加，配合各种倒装材料、底部填充胶各异的热导率，很容易导致“热失控（Thermal runaway）”。</li>
+<li><strong>跨层接口与信息传递（图 21）：</strong> 在评估阶段，架构侧提供了每个模块的静态和动态功耗映射图（Power Maps）（比如设定最坏情况：每个计算芯粒 3 瓦，中介层 10 瓦）。这些功耗数据，结合芯片的底层 GDS（原文未说明 GDS 的缩写含义）版图文件（包含了材料、几何结构的详细物理信息（在全系统封装和风扇的上下文中进行建模，存在一定的信息损失）），作为设计输入（design entry）传递给 EDA 侧的 <strong>Mentor Graphics Project Sahara</strong> 商业热仿真工具。<figure class="paper-figure"><a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf#page=13"><img src="figures/openalex-w3111684448/figure-21.png" alt="Figure 21: 3D chip-package thermal flow, from early exploration to sign-off" loading="lazy"></a><figcaption>Figure 21 · <a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf#page=13">原文 PDF 第 13 页</a></figcaption></figure></li>
+<li><strong>结果反馈：</strong> EDA 仿真结果（图 23 热力图）返回给架构师，证明在采用常规散热器和风扇的封装条件下，整个 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>3</mn><mtext>W</mtext><mo>×</mo><mn>6</mn><mo>+</mo><mn>10</mn><mtext>W</mtext><mo>=</mo><mn>28</mn><mtext>W</mtext></mrow></math></span> 的最坏系统功耗所带来的峰值温度仅为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><msup><mn>53</mn><mo>∘</mo></msup><mtext>C</mtext></mrow></math></span>，热耗散面积极大（中介层功耗密度仅为 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>0.14</mn><msup><mtext>W/mm</mtext><mn>2</mn></msup></mrow></math></span>）。因此，热分析的结果在架构层面给有源中介层的可行性开了绿灯。</li>
+</ul>
+<h3>八、 整体电路评估与总结 (论文第十、十一节)</h3>
+<p><strong>性能指标与实验现象：</strong>
+作者定制了一块带有 FPGA（原文未说明其缩写含义）和 DDR4（原文未说明其缩写含义）内存的 ATX（原文未说明其缩写含义）主板来实测该芯片（甚至在上面跑起了 Linux）。</p>
+<ul>
+<li>利用 FDSOI 工艺特有的 <strong>FBB（正向体偏置，Forward Body Biasing）</strong> 技术（通过施加 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mi>±</mi><mn>2</mn><mtext>V</mtext></mrow></math></span> 背栅电压动态调节晶体管阈值），芯粒在 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.3</mn><mtext>V</mtext></mrow></math></span> 电压下达到了 <span class="math inline"><math xmlns="http://www.w3.org/1998/Math/MathML" display="inline"><mrow><mn>1.15</mn><mtext> GHz</mtext></mrow></math></span> 的主频。</li>
+<li><strong>图 27（执行时间加速比）说明了什么：</strong> 在图像滤波应用的实测中，横坐标是核心数，纵坐标是加速比。曲线表明，当调用 96 核时，实现了 67 倍的加速（无量纲）；在仿真扩展到 512 核时，实现了 340 倍的加速（无量纲）。这证实了作者前文设计的分布式混合缓存一致性协议和异步片上网络不仅有效，而且具有准线性的极高扩展性。<figure class="paper-figure"><a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf#page=15"><img src="figures/openalex-w3111684448/figure-27.png" alt="Figure 27: Execution speedup up to 512 cores" loading="lazy"></a><figcaption>Figure 27 · <a href="https://hal.science/hal-03072959/file/JSSC2020%20-%20INTACT%20-%20v9%20-%20HAL%20version.pdf#page=15">原文 PDF 第 15 页</a></figcaption></figure></li>
+</ul>
+<p><strong>全文主线总结与局限性说明：</strong></p>
+<ul>
+<li><strong>主线串联：</strong> 本文针对高级制程中单片系统面临的良率危机与中介层单纯物理连线的通信瓶颈，提出了“有源中介层”这一核心解法。通过合理的工艺分区（28nm 计算 + 65nm 中介），不仅利用便宜的成熟工艺实现了整个大面积芯片的布线，更巧妙地把一直拖后腿的电源管理模块（SCVR）、全局异步网络中继和测试逻辑（DFT）放到了这块闲置的底层“主板”上，最终实现了一套完全可扩展、易验证的 96 核 3D 架构。</li>
+<li><strong>关键假设与局限性：</strong>
+<ol>
+<li><strong>稳压器效率权衡：</strong> 尽管将稳压器做到中介层省去了引脚并降低了 IR Drop，但 82% 的峰值效率实际上低于主流外置 DC-DC（原文未说明其缩写含义）转换器。作者是用“减少物料成本和系统复杂度”来换取了这部分电源转换效率的损失。</li>
+<li><strong>良率假设不能过度推广：</strong> 有源中介层路线之所以成立，极大程度上依赖于作者让 65nm 层保持了极低的逻辑密度（仅消耗了全芯片 3% 的功耗，大部分面积给了电容）。如果未来试图在中介层塞入更复杂的逻辑或缓存，该路线高良率的前提假设将被打破，成本将重新飙升。</li>
+</ol>
+</li>
+</ul>
+</div></td></tr></table></body></html>
