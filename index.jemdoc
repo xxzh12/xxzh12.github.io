@@ -46,6 +46,8 @@ Prior to that, I obtained my B.S. degree in the [https://ese.nju.edu.cn/main.htm
 - \[J1\] Wendong Xu, *Yuhao Ji*, Yang Bai, Yueting Li, Yuxuan Zhao, Zhengwu Liu, Bei Yu, Ngai Wong, "PPD: A Portable and Highly Parallel Dispatching System for Deep Learning", ACM Transactions on Design Automation of Electronic Systems (*TODAES*).
 
 === Conference Papers
+- \[C17\] Jincheng Lou, Jiecheng Ma, Runzhe Tao, Yifan Chen, Chunyuan Zhao, *Yuhao Ji*, Yuxiang Zhao, Xun Jiang, Ruohan Xu, Boyang Wu, Jing Mai, Zhiang Wang, Zhixiong Di, Bei Yu, Yibo Lin, “PDBench: LLM-Based Benchmark Generation for Physical Design Tool Validation”, IEEE/ACM Proceedings Design, Automation and Test in Europe (*DATE*), Dresden, Mar. 22–24, 2027.
+- \[C16\] Tianshu Hou, Yifan Shi, Yuntao Lu, *Yuhao Ji*, Yihan Wen, Hai-Bao Chen, Bei Yu, “Hybrid Parallel Computing for Transient EM Assessment of Large-Scale Interconnects”, IEEE/ACM Proceedings Design, Automation and Test in Europe (*DATE*), Dresden, Mar. 22–24, 2027.
 # - \[J1\] Lizhe Wang, *Hao Geng*, Peng Liu, Ke Lu, Joanna Kolodziej, Rajiv Ranjan, Albert Zomaya,
 #   "[http://www.sciencedirect.com/science/article/pii/S0950705114003712 Particle Swarm Optimization based Dictionary Learning for Remote Sensing Big Data]",
 #   Knowledge-Based System, vol. 79, pages 43-50, Elsevier, May, 2015.
